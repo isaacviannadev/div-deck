@@ -3,6 +3,7 @@ import { api, isTauri, isWindows, type AppStateDto, type Config, type DeckStatus
 import { AppPicker, Deck, KeyEditor } from "./components";
 import { AppIcon, Icon, Toggle, appName, useApps } from "./ui";
 import "./App.css";
+import logoSvg from "./divdeck-logo.svg?raw";
 
 const uid = () => Math.random().toString(36).slice(2, 9);
 
@@ -97,6 +98,7 @@ function Main({ initial }: { initial: AppStateDto }) {
       {/* ------------------------------------------------ sidebar */}
       <aside className="side">
         <div className="side-top" data-tauri-drag-region />
+        <div className="brand" data-tauri-drag-region dangerouslySetInnerHTML={{ __html: logoSvg }} />
 
         <div className="side-section">Dispositivo</div>
         <div className={`device ${status.connected ? "ok" : ""}`}>

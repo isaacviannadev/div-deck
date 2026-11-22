@@ -7,7 +7,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ScrollCraft } from 'scroll-craft';
-import { svg, drawIcon, hasIcon } from './icons.js';
+import { svg } from './icons.js';
 import presets from './presets.json';
 
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -21,27 +21,6 @@ document.querySelectorAll('[data-icon]').forEach((el) => {
   el.insertAdjacentHTML('afterbegin', svg(el.dataset.icon, +(el.dataset.size || 18), el.dataset.color || 'currentColor'));
 });
 
-// ============================================================== key legends per profile
-const MOD = { ctrl: '⌃', alt: '⌥', shift: '⇧', cmd: '⌘' };
-const KEYG = { Return: '↩', Space: '␣', Tab: '⇥', Escape: 'esc', Backspace: '⌫', Delete: '⌦', Left: '←', Right: '→', Up: '↑', Down: '↓' };
-const shortcutText = (a) => ['ctrl', 'alt', 'shift', 'cmd'].filter((m) => a.mods.includes(m)).map((m) => MOD[m]).join('') + (KEYG[a.key] ?? (a.key.length === 1 ? a.key.toUpperCase() : a.key));
-const mediaIcon = { playPause: 'play', next: 'next', previous: 'prev', volumeUp: 'volup', volumeDown: 'voldown', mute: 'mute' };
-const appIcon = { 'Visual Studio Code': 'vscode', Cursor: 'cursor', Figma: 'figma', ChatGPT: 'chatgpt', Claude: 'claude', Discord: 'discord', Steam: 'steam' };
-
-function legendsFor(profileId) {
-  const p = presets.profiles.find((x) => x.id === profileId);
-  return p.keys.map((k) => {
-    const a = k.action;
-    let icon = null, text = null;
-    if (a.type === 'media') icon = mediaIcon[a.key];
-    else if (a.type === 'openApp') icon = appIcon[a.name];
-    else if (a.type === 'openUrl') icon = k.label.startsWith('Dota') ? 'dota2' : 'steam';
-    else if (a.type === 'shortcut') { icon = k.label === 'Print' ? 'camera' : null; text = icon ? null : shortcutText(a); }
-    else text = k.label.slice(0, 4);
-    if (icon && !hasIcon(icon)) { text = k.label.slice(0, 3); icon = null; }
-    return { icon, text, color: '#' + k.color };
-  });
-}
 const STORY_PROFILES = ['default', 'vscode', 'figma', 'discord'];
 const PROFILE_NAMES = { default: 'Padrão', vscode: 'VS Code', figma: 'Figma', discord: 'Discord' };
 
@@ -100,8 +79,9 @@ function initThree() {
     tray: new THREE.MeshPhysicalMaterial({ color: 0x1a1b1f, roughness: 0.6, clearcoat: 0.15, clearcoatRoughness: 0.6 }),
     lid: new THREE.MeshPhysicalMaterial({ color: 0x24262b, roughness: 0.55 }),
     cover: new THREE.MeshPhysicalMaterial({ color: 0x0d0e10, roughness: 0.38, clearcoat: 0.5, clearcoatRoughness: 0.35 }),
-    cap: new THREE.MeshPhysicalMaterial({ color: 0xc9cace, roughness: 0.68 }),
+    cap: new THREE.MeshPhysicalMaterial({ color: 0xd2d3d7, roughness: 0.6, clearcoat: 0.25, clearcoatRoughness: 0.5 }),
     sw: new THREE.MeshPhysicalMaterial({ color: 0x30343d, roughness: 0.3, metalness: 0.05 }),
+    stem: new THREE.MeshPhysicalMaterial({ color: 0x2f6df6, roughness: 0.35 }),
     pcb: new THREE.MeshPhysicalMaterial({ color: 0x0f1012, roughness: 0.32, clearcoat: 0.6 }),
     gold: new THREE.MeshStandardMaterial({ color: 0xd9a944, roughness: 0.3, metalness: 1 }),
     silver: new THREE.MeshStandardMaterial({ color: 0xbfc3c8, roughness: 0.28, metalness: 1 }),
@@ -134,6 +114,22 @@ function initThree() {
     const glow = new THREE.Mesh(new THREE.PlaneGeometry(26, 26), new THREE.MeshBasicMaterial({ map: glowTex, color: 0x38d6ff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
     glow.position.set(x, y - 1, 1.7); layers.cover.add(glow); glows.push(glow);
   }
+  // light columns from each LED up through the exploded layers (only visible in the light phase)
+  const beamTex = (() => {
+    const c = document.createElement('canvas'); c.width = 4; c.height = 128;
+    const g = c.getContext('2d'); const gr = g.createLinearGradient(0, 0, 0, 128);
+    gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(0.35, 'rgba(255,255,255,.55)'); gr.addColorStop(1, 'rgba(255,255,255,1)');
+    g.fillStyle = gr; g.fillRect(0, 0, 4, 128); return new THREE.CanvasTexture(c);
+  })();
+  const beams = [];
+  for (let k = 0; k < 15; k++) {
+    const [x, y] = keyPos(k);
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(6.5, 1.6, 64, 24, 1, true),
+      new THREE.MeshBasicMaterial({ map: beamTex, color: 0x38d6ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+    beam.rotation.x = Math.PI / 2; beam.position.set(x, y - 2.5, -4.4 + 32);
+    layers.pcb.add(beam); beams.push(beam);
+  }
+
   // DevKit (desk frame, upside down in its corral, header pins up)
   const devkit = new THREE.Group(); root.add(devkit);
   const board = new THREE.Mesh(new THREE.BoxGeometry(51.5, 28.3, 1.6), mat.devkit); devkit.add(board);
@@ -144,27 +140,13 @@ function initThree() {
   }
   devkit.position.set(26, 8.2, 7.7);
 
-  // ---- keycap legends (canvas textures, redrawn per profile)
-  const legendCanvas = [], legendTex = [];
-  function drawLegends(profileId) {
-    const L = legendsFor(profileId);
-    L.forEach((l, k) => {
-      const c = legendCanvas[k], g = c.getContext('2d');
-      g.clearRect(0, 0, 256, 256);
-      if (l.icon) drawIcon(g, l.icon, 128, 128, 132, '#2a2b30');
-      else if (l.text) {
-        g.fillStyle = '#2a2b30';
-        g.textAlign = 'center'; g.textBaseline = 'middle';
-        const fs = l.text.length > 3 ? 56 : l.text.length > 2 ? 72 : 96;
-        g.font = `600 ${fs}px -apple-system, "SF Pro Display", Inter, system-ui, sans-serif`;
-        g.fillText(l.text, 128, 134);
-      }
-      legendTex[k].needsUpdate = true;
-      ledTarget[k].set(l.color);
-    });
+  // ---- a profile only changes what the keys do and their LED colours (the keycaps stay blank)
+  function applyProfile(profileId) {
+    const p = presets.profiles.find((x) => x.id === profileId);
+    p.keys.forEach((k, i) => ledTarget[i].set('#' + k.color));
   }
 
-  const caps = [];
+  const caps = [], capMats = [];
   const pick = []; // meshes for raycasting
   const state = { p: 0, explode: 0, mx: 0, my: 0, tmx: 0, tmy: 0, hover: -1, profile: '', wave: 0, flash: new Array(15).fill(0) };
 
@@ -173,17 +155,15 @@ function initThree() {
     const tray = get('tray'); tray.material = mat.tray; layers.tray.add(tray);
     const lid = get('lid'); lid.material = mat.lid; layers.plate.add(lid);
     const cover = get('cover'); cover.material = mat.cover; layers.cover.add(cover);
-    const swGeo = get('switch').geometry, capGeo = get('keycap').geometry;
+    const swGeo = get('switch').geometry, stemGeo = get('stem').geometry;
+    const capGeos = [get('keycap1').geometry, get('keycap2').geometry, get('keycap3').geometry]; // Pro caps, sculpted per row
     for (let k = 0; k < 15; k++) {
       const [x, y] = keyPos(k);
       const sw = new THREE.Mesh(swGeo, mat.sw); sw.position.set(x, y, 0); layers.plate.add(sw);
       const cap = new THREE.Group(); cap.position.set(x, y, CAP_Z); layers.caps.add(cap);
-      const body = new THREE.Mesh(capGeo, mat.cap); body.userData.key = k; cap.add(body); pick.push(body);
-      const c = document.createElement('canvas'); c.width = c.height = 256; legendCanvas.push(c);
-      const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4; legendTex.push(tex);
-      // the deck is viewed from the front (+y in the desk frame), so the legend plane is turned to read upright
-      const legend = new THREE.Mesh(new THREE.PlaneGeometry(11.5, 11.5), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
-      legend.position.z = 6.03; legend.rotation.z = Math.PI; cap.add(legend);
+      const body = new THREE.Mesh(capGeos[Math.floor(k / 5)], mat.cap.clone()); capMats[k] = body.material; body.userData.key = k; cap.add(body); pick.push(body);
+      // the MX stem travels with the keycap (geometry is in switch coordinates, plate top = 0)
+      const stem = new THREE.Mesh(stemGeo, mat.stem); stem.position.z = -CAP_Z; cap.add(stem);
       caps.push(cap);
     }
     // centre the model on the pivot
@@ -194,14 +174,14 @@ function initThree() {
     const ctr = new THREE.Box3().setFromObject(root, true).getCenter(new THREE.Vector3());
     root.position.sub(ctr);
     pivot.position.copy(saved[0]); pivot.rotation.copy(saved[1]);
-    drawLegends(state.profile || 'default');
+    applyProfile(state.profile || 'default');
     document.documentElement.classList.add('deck-ready');
   });
 
   function setProfile(id) {
     if (state.profile === id) return;
     state.profile = id;
-    if (legendCanvas.length) drawLegends(id);
+    applyProfile(id);
     const lbl = document.querySelector('#story-profile');
     if (lbl) lbl.textContent = PROFILE_NAMES[id];
   }
@@ -237,7 +217,7 @@ function initThree() {
     [0.0, -0.6, 0.5, 5.8, 0, -0.8], [0.1, -0.6, 0.5, 5.8, 0, -0.8],
     [0.2, -0.15, 1.0, 3.6, 0.42, -0.02], [0.3, -0.15, 1.0, 3.6, 0.42, -0.02],
     [0.42, 0.55, 0.48, 4.6, -0.5, 0.06], [0.5, 0.6, 0.45, 4.6, -0.5, 0.06],
-    [0.58, 0.2, 0.62, 4.4, 0.45, 0.04], [0.68, 0.25, 0.62, 4.4, 0.45, 0.04],
+    [0.57, 0.15, 0.34, 4.6, 0.42, -0.06], [0.68, 0.3, 0.38, 4.6, 0.42, -0.06],
     [0.78, -0.45, 0.62, 3.9, -0.42, -0.02], [1.0, -0.4, 0.62, 3.9, -0.42, -0.02],
   ];
   function camAt(p) {
@@ -299,18 +279,32 @@ function initThree() {
     canvas.style.cursor = state.hover >= 0 ? 'pointer' : '';
 
     // LEDs: profile colours + breathing, rainbow wave while exploded, hover/press flashes
-    const wave = smooth(0.48, 0.56, p) * (1 - smooth(0.66, 0.72, p));
+    const wave = smooth(0.48, 0.56, p) * (1 - smooth(0.68, 0.74, p));
+    bloom.strength = 0.55 + wave * 0.85;
+    bloom.threshold = 0.92 - wave * 0.25;
+    scene.environmentIntensity = 0.28 * (1 - wave * 0.7);
+    key.intensity = 1.5 * (1 - wave * 0.75);
+    // light phase pattern: a colour ripple from the centre key with travelling bright rings
+    const lp = (p - 0.52) / 0.18;
     for (let k = 0; k < 15; k++) {
       const c = ledColor[k];
       c.lerp(ledTarget[k], 0.08);
       const col = c.clone();
-      if (wave > 0) { hsl.setHSL(((k % 5) * 0.12 + Math.floor(k / 5) * 0.05 - t * 0.25) % 1 + 1, 0.85, 0.55); col.lerp(hsl, wave); }
+      let ring = 0;
+      if (wave > 0) {
+        const d = Math.hypot((k % 5) - 2, Math.floor(k / 5) - 1);
+        hsl.setHSL((((d * 0.24 + (k % 5) * 0.05 - t * 0.3 + lp * 0.8) % 1) + 1) % 1, 0.95, 0.55);
+        col.lerp(hsl, wave);
+        ring = Math.max(0, Math.sin(d * 1.6 - t * 4.2)) ** 3;
+      }
       state.flash[k] = Math.max(0, state.flash[k] - 0.03);
       const hov = k === state.hover ? 1 : 0;
       const breathe = 0.75 + 0.25 * Math.sin(t * 1.6 + k * 0.35);
-      const I = breathe + hov * 0.8 + state.flash[k] * 1.6;
+      const I = breathe + hov * 0.8 + state.flash[k] * 1.6 + wave * (0.5 + ring * 1.4);
       leds[k].material.emissive.copy(col); leds[k].material.emissiveIntensity = 2 + I * 2;
       glows[k].material.color.copy(col).multiplyScalar(0.55 * I * (1 - ex * 0.85));
+      beams[k].material.color.copy(col); beams[k].material.opacity = wave * (0.18 + ring * 0.5) * ex;
+      if (capMats[k]) { capMats[k].emissive.copy(col); capMats[k].emissiveIntensity = wave * (0.1 + ring * 0.22) + state.flash[k] * 0.15 + hov * 0.06; }
       if (caps[k]) caps[k].position.z = lerp(caps[k].position.z, CAP_Z - (hov ? 2.2 : 0) - state.flash[k] * 1.2, 0.25);
     }
 

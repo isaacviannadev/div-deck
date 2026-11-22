@@ -72,6 +72,9 @@ html.web .side, html.win .side { background: var(--side-web); }
 html.win .side-top { height: 14px; }
 html.win body { background: var(--main); }
 .side-top { height: 52px; flex: none; }
+.brand { display: flex; align-items: center; padding: 0 10px 10px; color: var(--text); }
+.brand svg { height: 14px; width: auto; pointer-events: none; }
+html.win .brand { padding-top: 6px; }
 .side-section { display: flex; align-items: center; justify-content: space-between; padding: 14px 10px 5px; font-size: 11px; font-weight: 600; color: var(--text-3); }
 .side-section:first-of-type { padding-top: 2px; }
 .side-add { width: 20px; height: 20px; border-radius: 5px; display: grid; place-items: center; color: var(--text-2); }
