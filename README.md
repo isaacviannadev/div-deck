@@ -11,6 +11,7 @@ Macro pad 3×5 com ESP32, teclas MX hot-swap e LED RGB por tecla — e o app que
 | `app/` | App de controle (Tauri 2 + React/TypeScript). Perfis por app, atalhos, mídia, links, textos, comandos, cores dos LEDs. |
 | `firmware/` | Firmware do ESP32 (PlatformIO/Arduino). Protocolo serial texto a 115200. |
 | `docs/` | Página do produto (GitHub Pages) — destino do QR code da embalagem. |
+| `web/` | Código da página: modelo 3D (three.js) animado no scroll e scroll-craft. `cd web && npm i && npm run build` gera `docs/assets/app.js`. |
 | `.github/workflows/release.yml` | Gera os instaladores (`.dmg` universal e `setup.exe`) ao publicar uma release. |
 
 ## Desenvolver o app

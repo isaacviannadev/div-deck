@@ -1,0 +1,16 @@
+{
+  "name": "divdeck-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/main.js --bundle --minify --format=esm --target=es2020 --outfile=../docs/assets/app.js",
+    "dev": "esbuild src/main.js --bundle --format=esm --outfile=../docs/assets/app.js --watch"
+  },
+  "dependencies": {
+    "scroll-craft": "^0.1.0",
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}
