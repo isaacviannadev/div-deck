@@ -1,0 +1,62 @@
+name: Release
+
+# Push a tag like v0.2.0 to build the macOS (.dmg, universal) and Windows (setup .exe) installers
+# and publish them as a GitHub release. The landing page in docs/ links to the latest one.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: --target universal-apple-darwin
+            rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
+          - platform: windows-latest
+            args: ""
+            rust_targets: ""
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri -> target
+
+      - name: Install frontend deps
+        working-directory: app
+        run: npm ci
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: app
+          tagName: ${{ github.ref_name }}
+          releaseName: DIV Deck ${{ github.ref_name }}
+          releaseBody: |
+            Baixe o instalador do seu sistema abaixo.
+            Guia de primeiros passos: https://isaacviannadev.github.io/div-deck/#comecar
+
+            - **macOS**: `DIV.Deck_*_universal.dmg` (Apple Silicon e Intel). Na 1ª vez: botão direito › Abrir.
+            - **Windows**: `DIV.Deck_*_x64-setup.exe`. Se aparecer o SmartScreen: Mais informações › Executar assim mesmo.
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}

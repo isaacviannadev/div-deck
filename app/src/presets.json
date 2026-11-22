@@ -1,0 +1,1400 @@
+{
+  "profiles": [
+    {
+      "id": "default",
+      "name": "Padrão",
+      "apps": [],
+      "keys": [
+        {
+          "label": "VS Code",
+          "color": "3ea6ff",
+          "action": {
+            "type": "openApp",
+            "path": "/Applications/Visual Studio Code.app",
+            "name": "Visual Studio Code"
+          }
+        },
+        {
+          "label": "Cursor",
+          "color": "e8e8e8",
+          "action": {
+            "type": "openApp",
+            "path": "/Applications/Cursor.app",
+            "name": "Cursor"
+          }
+        },
+        {
+          "label": "Figma",
+          "color": "a259ff",
+          "action": {
+            "type": "openApp",
+            "path": "/Applications/Figma.app",
+            "name": "Figma"
+          }
+        },
+        {
+          "label": "ChatGPT",
+          "color": "10a37f",
+          "action": {
+            "type": "openApp",
+            "path": "/Applications/ChatGPT.app",
+            "name": "ChatGPT"
+          }
+        },
+        {
+          "label": "Claude",
+          "color": "d97757",
+          "action": {
+            "type": "openApp",
+            "path": "/Applications/Claude.app",
+            "name": "Claude"
+          }
+        },
+        {
+          "label": "Discord",
+          "color": "5865f2",
+          "action": {
+            "type": "openApp",
+            "path": "/Applications/Discord.app",
+            "name": "Discord"
+          }
+        },
+        {
+          "label": "Steam",
+          "color": "66c0f4",
+          "action": {
+            "type": "openApp",
+            "path": "/Applications/Steam.app",
+            "name": "Steam"
+          }
+        },
+        {
+          "label": "Dota 2",
+          "color": "e0332b",
+          "action": {
+            "type": "openUrl",
+            "url": "steam://rungameid/570"
+          }
+        },
+        {
+          "label": "Print",
+          "color": "ffb020",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd",
+              "shift"
+            ],
+            "key": "4"
+          }
+        },
+        {
+          "label": "Mudo",
+          "color": "7c5cff",
+          "action": {
+            "type": "media",
+            "key": "mute"
+          }
+        },
+        {
+          "label": "Play",
+          "color": "38d6ff",
+          "action": {
+            "type": "media",
+            "key": "playPause"
+          }
+        },
+        {
+          "label": "Anterior",
+          "color": "38d6ff",
+          "action": {
+            "type": "media",
+            "key": "previous"
+          }
+        },
+        {
+          "label": "Próxima",
+          "color": "38d6ff",
+          "action": {
+            "type": "media",
+            "key": "next"
+          }
+        },
+        {
+          "label": "Vol −",
+          "color": "38d6ff",
+          "action": {
+            "type": "media",
+            "key": "volumeDown"
+          }
+        },
+        {
+          "label": "Vol +",
+          "color": "38d6ff",
+          "action": {
+            "type": "media",
+            "key": "volumeUp"
+          }
+        }
+      ]
+    },
+    {
+      "id": "vscode",
+      "name": "VS Code",
+      "apps": [
+        "com.microsoft.VSCode",
+        "com.microsoft.VSCodeInsiders"
+      ],
+      "keys": [
+        {
+          "label": "Paleta",
+          "color": "3ea6ff",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd",
+              "shift"
+            ],
+            "key": "p"
+          }
+        },
+        {
+          "label": "Arquivo",
+          "color": "3ea6ff",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd"
+            ],
+            "key": "p"
+          }
+        },
+        {
+          "label": "Buscar",
+          "color": "3ea6ff",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd",
+              "shift"
+            ],
+            "key": "f"
+          }
+        },
+        {
+          "label": "Explorer",
+          "color": "3ea6ff",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd",
+              "shift"
+            ],
+            "key": "e"
+          }
+        },
+        {
+          "label": "Git",
+          "color": "f05033",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "ctrl",
+              "shift"
+            ],
+            "key": "g"
+          }
+        },
+        {
+          "label": "Terminal",
+          "color": "3ddc84",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "ctrl"
+            ],
+            "key": "`"
+          }
+        },
+        {
+          "label": "Sidebar",
+          "color": "3ea6ff",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd"
+            ],
+            "key": "b"
+          }
+        },
+        {
+          "label": "Dividir",
+          "color": "3ea6ff",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd"
+            ],
+            "key": "\\"
+          }
+        },
+        {
+          "label": "Comentar",
+          "color": "3ea6ff",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd"
+            ],
+            "key": "/"
+          }
+        },
+        {
+          "label": "Formatar",
+          "color": "3ea6ff",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "shift",
+              "alt"
+            ],
+            "key": "f"
+          }
+        },
+        {
+          "label": "Definição",
+          "color": "a259ff",
+          "action": {
+            "type": "shortcut",
+            "mods": [],
+            "key": "F12"
+          }
+        },
+        {
+          "label": "Renomear",
+          "color": "a259ff",
+          "action": {
+            "type": "shortcut",
+            "mods": [],
+            "key": "F2"
+          }
+        },
+        {
+          "label": "Debug",
+          "color": "ffb020",
+          "action": {
+            "type": "shortcut",
+            "mods": [],
+            "key": "F5"
+          }
+        },
+        {
+          "label": "Parar",
+          "color": "ff2d55",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "shift"
+            ],
+            "key": "F5"
+          }
+        },
+        {
+          "label": "Salvar",
+          "color": "3ddc84",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd"
+            ],
+            "key": "s"
+          }
+        }
+      ]
+    },
+    {
+      "id": "cursor",
+      "name": "Cursor",
+      "apps": [
+        "com.todesktop.230313mzl4w4u92"
+      ],
+      "keys": [
+        {
+          "label": "Chat",
+          "color": "e8e8e8",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd"
+            ],
+            "key": "l"
+          }
+        },
+        {
+          "label": "Editar",
+          "color": "e8e8e8",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd"
+            ],
+            "key": "k"
+          }
+        },
+        {
+          "label": "Agente",
+          "color": "e8e8e8",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd"
+            ],
+            "key": "i"
+          }
+        },
+        {
+          "label": "Aceitar",
+          "color": "3ddc84",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd"
+            ],
+            "key": "Return"
+          }
+        },
+        {
+          "label": "Rejeitar",
+          "color": "ff2d55",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd"
+            ],
+            "key": "Backspace"
+          }
+        },
+        {
+          "label": "Paleta",
+          "color": "3ea6ff",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd",
+              "shift"
+            ],
+            "key": "p"
+          }
+        },
+        {
+          "label": "Arquivo",
+          "color": "3ea6ff",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd"
+            ],
+            "key": "p"
+          }
+        },
+        {
+          "label": "Buscar",
+          "color": "3ea6ff",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd",
+              "shift"
+            ],
+            "key": "f"
+          }
+        },
+        {
+          "label": "Terminal",
+          "color": "3ddc84",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "ctrl"
+            ],
+            "key": "`"
+          }
+        },
+        {
+          "label": "Git",
+          "color": "f05033",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "ctrl",
+              "shift"
+            ],
+            "key": "g"
+          }
+        },
+        {
+          "label": "Sidebar",
+          "color": "3ea6ff",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd"
+            ],
+            "key": "b"
+          }
+        },
+        {
+          "label": "Comentar",
+          "color": "3ea6ff",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd"
+            ],
+            "key": "/"
+          }
+        },
+        {
+          "label": "Definição",
+          "color": "a259ff",
+          "action": {
+            "type": "shortcut",
+            "mods": [],
+            "key": "F12"
+          }
+        },
+        {
+          "label": "Renomear",
+          "color": "a259ff",
+          "action": {
+            "type": "shortcut",
+            "mods": [],
+            "key": "F2"
+          }
+        },
+        {
+          "label": "Salvar",
+          "color": "3ddc84",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd"
+            ],
+            "key": "s"
+          }
+        }
+      ]
+    },
+    {
+      "id": "figma",
+      "name": "Figma",
+      "apps": [
+        "com.figma.Desktop"
+      ],
+      "keys": [
+        {
+          "label": "Mover",
+          "color": "1abcfe",
+          "action": {
+            "type": "shortcut",
+            "mods": [],
+            "key": "v"
+          }
+        },
+        {
+          "label": "Frame",
+          "color": "1abcfe",
+          "action": {
+            "type": "shortcut",
+            "mods": [],
+            "key": "f"
+          }
+        },
+        {
+          "label": "Retângulo",
+          "color": "1abcfe",
+          "action": {
+            "type": "shortcut",
+            "mods": [],
+            "key": "r"
+          }
+        },
+        {
+          "label": "Texto",
+          "color": "1abcfe",
+          "action": {
+            "type": "shortcut",
+            "mods": [],
+            "key": "t"
+          }
+        },
+        {
+          "label": "Caneta",
+          "color": "1abcfe",
+          "action": {
+            "type": "shortcut",
+            "mods": [],
+            "key": "p"
+          }
+        },
+        {
+          "label": "Auto layout",
+          "color": "a259ff",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "shift"
+            ],
+            "key": "a"
+          }
+        },
+        {
+          "label": "Componente",
+          "color": "a259ff",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "alt",
+              "cmd"
+            ],
+            "key": "k"
+          }
+        },
+        {
+          "label": "Agrupar",
+          "color": "a259ff",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd"
+            ],
+            "key": "g"
+          }
+        },
+        {
+          "label": "Desagrupar",
+          "color": "a259ff",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "shift",
+              "cmd"
+            ],
+            "key": "g"
+          }
+        },
+        {
+          "label": "Duplicar",
+          "color": "a259ff",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd"
+            ],
+            "key": "d"
+          }
+        },
+        {
+          "label": "Ajustar",
+          "color": "0acf83",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "shift"
+            ],
+            "key": "1"
+          }
+        },
+        {
+          "label": "Zoom 100%",
+          "color": "0acf83",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "shift"
+            ],
+            "key": "0"
+          }
+        },
+        {
+          "label": "Copiar estilo",
+          "color": "f24e1e",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "alt",
+              "cmd"
+            ],
+            "key": "c"
+          }
+        },
+        {
+          "label": "Colar estilo",
+          "color": "f24e1e",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "alt",
+              "cmd"
+            ],
+            "key": "v"
+          }
+        },
+        {
+          "label": "Ações",
+          "color": "f24e1e",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd"
+            ],
+            "key": "/"
+          }
+        }
+      ]
+    },
+    {
+      "id": "discord",
+      "name": "Discord",
+      "apps": [
+        "com.hnc.Discord"
+      ],
+      "keys": [
+        {
+          "label": "Mudo",
+          "color": "ff2d55",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd",
+              "shift"
+            ],
+            "key": "m"
+          }
+        },
+        {
+          "label": "Ensurdecer",
+          "color": "ff2d55",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd",
+              "shift"
+            ],
+            "key": "d"
+          }
+        },
+        {
+          "label": "Atender",
+          "color": "3ddc84",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd"
+            ],
+            "key": "Return"
+          }
+        },
+        {
+          "label": "Recusar",
+          "color": "ff2d55",
+          "action": {
+            "type": "shortcut",
+            "mods": [],
+            "key": "Escape"
+          }
+        },
+        {
+          "label": "Ir para…",
+          "color": "5865f2",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd"
+            ],
+            "key": "k"
+          }
+        },
+        {
+          "label": "Canal ↑",
+          "color": "5865f2",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "alt"
+            ],
+            "key": "Up"
+          }
+        },
+        {
+          "label": "Canal ↓",
+          "color": "5865f2",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "alt"
+            ],
+            "key": "Down"
+          }
+        },
+        {
+          "label": "Não lido ↑",
+          "color": "5865f2",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "alt",
+              "shift"
+            ],
+            "key": "Up"
+          }
+        },
+        {
+          "label": "Não lido ↓",
+          "color": "5865f2",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "alt",
+              "shift"
+            ],
+            "key": "Down"
+          }
+        },
+        {
+          "label": "Marcar lido",
+          "color": "5865f2",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "shift"
+            ],
+            "key": "Escape"
+          }
+        },
+        {
+          "label": "Emoji",
+          "color": "ffb020",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd"
+            ],
+            "key": "e"
+          }
+        },
+        {
+          "label": "Enviar arquivo",
+          "color": "ffb020",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd",
+              "shift"
+            ],
+            "key": "u"
+          }
+        },
+        {
+          "label": "Caixa",
+          "color": "ffb020",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd"
+            ],
+            "key": "i"
+          }
+        },
+        {
+          "label": "Membros",
+          "color": "ffb020",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd"
+            ],
+            "key": "u"
+          }
+        },
+        {
+          "label": "Fixados",
+          "color": "ffb020",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd"
+            ],
+            "key": "p"
+          }
+        }
+      ]
+    },
+    {
+      "id": "steam",
+      "name": "Steam",
+      "apps": [
+        "com.valvesoftware.steam"
+      ],
+      "keys": [
+        {
+          "label": "Biblioteca",
+          "color": "66c0f4",
+          "action": {
+            "type": "openUrl",
+            "url": "steam://open/games"
+          }
+        },
+        {
+          "label": "Loja",
+          "color": "66c0f4",
+          "action": {
+            "type": "openUrl",
+            "url": "steam://store"
+          }
+        },
+        {
+          "label": "Amigos",
+          "color": "66c0f4",
+          "action": {
+            "type": "openUrl",
+            "url": "steam://open/friends"
+          }
+        },
+        {
+          "label": "Downloads",
+          "color": "66c0f4",
+          "action": {
+            "type": "openUrl",
+            "url": "steam://open/downloads"
+          }
+        },
+        {
+          "label": "Big Picture",
+          "color": "66c0f4",
+          "action": {
+            "type": "openUrl",
+            "url": "steam://open/bigpicture"
+          }
+        },
+        {
+          "label": "Dota 2",
+          "color": "e0332b",
+          "action": {
+            "type": "openUrl",
+            "url": "steam://rungameid/570"
+          }
+        },
+        {
+          "label": "Discord",
+          "color": "5865f2",
+          "action": {
+            "type": "openApp",
+            "path": "/Applications/Discord.app",
+            "name": "Discord"
+          }
+        },
+        {
+          "label": "Overlay",
+          "color": "ffb020",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "shift"
+            ],
+            "key": "Tab"
+          }
+        },
+        {
+          "label": "Screenshot",
+          "color": "ffb020",
+          "action": {
+            "type": "shortcut",
+            "mods": [],
+            "key": "F12"
+          }
+        },
+        {
+          "label": "Mudo",
+          "color": "7c5cff",
+          "action": {
+            "type": "media",
+            "key": "mute"
+          }
+        },
+        {
+          "label": "Play",
+          "color": "7c5cff",
+          "action": {
+            "type": "media",
+            "key": "playPause"
+          }
+        },
+        {
+          "label": "Anterior",
+          "color": "7c5cff",
+          "action": {
+            "type": "media",
+            "key": "previous"
+          }
+        },
+        {
+          "label": "Próxima",
+          "color": "7c5cff",
+          "action": {
+            "type": "media",
+            "key": "next"
+          }
+        },
+        {
+          "label": "Vol −",
+          "color": "7c5cff",
+          "action": {
+            "type": "media",
+            "key": "volumeDown"
+          }
+        },
+        {
+          "label": "Vol +",
+          "color": "7c5cff",
+          "action": {
+            "type": "media",
+            "key": "volumeUp"
+          }
+        }
+      ]
+    },
+    {
+      "id": "dota2",
+      "name": "Dota 2",
+      "apps": [
+        "com.valvesoftware.dota2",
+        "dota2",
+        "Dota 2"
+      ],
+      "keys": [
+        {
+          "label": "Q",
+          "color": "38d6ff",
+          "action": {
+            "type": "shortcut",
+            "mods": [],
+            "key": "q"
+          }
+        },
+        {
+          "label": "W",
+          "color": "38d6ff",
+          "action": {
+            "type": "shortcut",
+            "mods": [],
+            "key": "w"
+          }
+        },
+        {
+          "label": "E",
+          "color": "38d6ff",
+          "action": {
+            "type": "shortcut",
+            "mods": [],
+            "key": "e"
+          }
+        },
+        {
+          "label": "D",
+          "color": "38d6ff",
+          "action": {
+            "type": "shortcut",
+            "mods": [],
+            "key": "d"
+          }
+        },
+        {
+          "label": "F",
+          "color": "38d6ff",
+          "action": {
+            "type": "shortcut",
+            "mods": [],
+            "key": "f"
+          }
+        },
+        {
+          "label": "ULT",
+          "color": "ff2d55",
+          "action": {
+            "type": "shortcut",
+            "mods": [],
+            "key": "r"
+          }
+        },
+        {
+          "label": "Item 1",
+          "color": "ffb020",
+          "action": {
+            "type": "shortcut",
+            "mods": [],
+            "key": "z"
+          }
+        },
+        {
+          "label": "Item 2",
+          "color": "ffb020",
+          "action": {
+            "type": "shortcut",
+            "mods": [],
+            "key": "x"
+          }
+        },
+        {
+          "label": "Item 3",
+          "color": "ffb020",
+          "action": {
+            "type": "shortcut",
+            "mods": [],
+            "key": "c"
+          }
+        },
+        {
+          "label": "Herói",
+          "color": "3ddc84",
+          "action": {
+            "type": "shortcut",
+            "mods": [],
+            "key": "F1"
+          }
+        },
+        {
+          "label": "Item 4",
+          "color": "ffb020",
+          "action": {
+            "type": "shortcut",
+            "mods": [],
+            "key": "v"
+          }
+        },
+        {
+          "label": "Item 5",
+          "color": "ffb020",
+          "action": {
+            "type": "shortcut",
+            "mods": [],
+            "key": "b"
+          }
+        },
+        {
+          "label": "Item 6",
+          "color": "ffb020",
+          "action": {
+            "type": "shortcut",
+            "mods": [],
+            "key": "n"
+          }
+        },
+        {
+          "label": "Loja",
+          "color": "3ddc84",
+          "action": {
+            "type": "shortcut",
+            "mods": [],
+            "key": "F4"
+          }
+        },
+        {
+          "label": "Discord",
+          "color": "5865f2",
+          "action": {
+            "type": "openApp",
+            "path": "/Applications/Discord.app",
+            "name": "Discord"
+          }
+        }
+      ]
+    },
+    {
+      "id": "chatgpt",
+      "name": "ChatGPT",
+      "apps": [
+        "com.openai.chat",
+        "com.openai.codex"
+      ],
+      "keys": [
+        {
+          "label": "Novo chat",
+          "color": "10a37f",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd"
+            ],
+            "key": "n"
+          }
+        },
+        {
+          "label": "Colar",
+          "color": "10a37f",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd"
+            ],
+            "key": "v"
+          }
+        },
+        {
+          "label": "Enviar",
+          "color": "3ddc84",
+          "action": {
+            "type": "shortcut",
+            "mods": [],
+            "key": "Return"
+          }
+        },
+        {
+          "label": "Copiar",
+          "color": "10a37f",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd"
+            ],
+            "key": "c"
+          }
+        },
+        {
+          "label": "Parar",
+          "color": "ff2d55",
+          "action": {
+            "type": "shortcut",
+            "mods": [],
+            "key": "Escape"
+          }
+        },
+        {
+          "label": "Explicar",
+          "color": "38d6ff",
+          "action": {
+            "type": "typeText",
+            "text": "Explique este código passo a passo:\n"
+          }
+        },
+        {
+          "label": "Revisar",
+          "color": "38d6ff",
+          "action": {
+            "type": "typeText",
+            "text": "Revise este código, aponte bugs e sugira melhorias:\n"
+          }
+        },
+        {
+          "label": "Testes",
+          "color": "38d6ff",
+          "action": {
+            "type": "typeText",
+            "text": "Escreva testes para este código:\n"
+          }
+        },
+        {
+          "label": "Refatorar",
+          "color": "38d6ff",
+          "action": {
+            "type": "typeText",
+            "text": "Refatore mantendo o comportamento, mais legível:\n"
+          }
+        },
+        {
+          "label": "Resumir",
+          "color": "a259ff",
+          "action": {
+            "type": "typeText",
+            "text": "Resuma em tópicos curtos:\n"
+          }
+        },
+        {
+          "label": "Traduzir EN",
+          "color": "a259ff",
+          "action": {
+            "type": "typeText",
+            "text": "Traduza para inglês, tom natural:\n"
+          }
+        },
+        {
+          "label": "Melhorar texto",
+          "color": "a259ff",
+          "action": {
+            "type": "typeText",
+            "text": "Melhore este texto, mais claro e direto:\n"
+          }
+        },
+        {
+          "label": "Commit msg",
+          "color": "ffb020",
+          "action": {
+            "type": "typeText",
+            "text": "Escreva uma mensagem de commit (conventional commits) para este diff:\n"
+          }
+        },
+        {
+          "label": "Email",
+          "color": "ffb020",
+          "action": {
+            "type": "typeText",
+            "text": "Escreva um email profissional e curto sobre:\n"
+          }
+        },
+        {
+          "label": "Encurtar",
+          "color": "ffb020",
+          "action": {
+            "type": "typeText",
+            "text": "Deixe mais curto, sem perder o essencial:\n"
+          }
+        }
+      ]
+    },
+    {
+      "id": "claude",
+      "name": "Claude",
+      "apps": [
+        "com.anthropic.claudefordesktop"
+      ],
+      "keys": [
+        {
+          "label": "Novo chat",
+          "color": "d97757",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd"
+            ],
+            "key": "n"
+          }
+        },
+        {
+          "label": "Colar",
+          "color": "d97757",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd"
+            ],
+            "key": "v"
+          }
+        },
+        {
+          "label": "Enviar",
+          "color": "3ddc84",
+          "action": {
+            "type": "shortcut",
+            "mods": [],
+            "key": "Return"
+          }
+        },
+        {
+          "label": "Copiar",
+          "color": "d97757",
+          "action": {
+            "type": "shortcut",
+            "mods": [
+              "cmd"
+            ],
+            "key": "c"
+          }
+        },
+        {
+          "label": "Parar",
+          "color": "ff2d55",
+          "action": {
+            "type": "shortcut",
+            "mods": [],
+            "key": "Escape"
+          }
+        },
+        {
+          "label": "Explicar",
+          "color": "38d6ff",
+          "action": {
+            "type": "typeText",
+            "text": "Explique este código passo a passo:\n"
+          }
+        },
+        {
+          "label": "Revisar",
+          "color": "38d6ff",
+          "action": {
+            "type": "typeText",
+            "text": "Revise este código, aponte bugs e sugira melhorias:\n"
+          }
+        },
+        {
+          "label": "Testes",
+          "color": "38d6ff",
+          "action": {
+            "type": "typeText",
+            "text": "Escreva testes para este código:\n"
+          }
+        },
+        {
+          "label": "Refatorar",
+          "color": "38d6ff",
+          "action": {
+            "type": "typeText",
+            "text": "Refatore mantendo o comportamento, mais legível:\n"
+          }
+        },
+        {
+          "label": "Resumir",
+          "color": "a259ff",
+          "action": {
+            "type": "typeText",
+            "text": "Resuma em tópicos curtos:\n"
+          }
+        },
+        {
+          "label": "Traduzir EN",
+          "color": "a259ff",
+          "action": {
+            "type": "typeText",
+            "text": "Traduza para inglês, tom natural:\n"
+          }
+        },
+        {
+          "label": "Melhorar texto",
+          "color": "a259ff",
+          "action": {
+            "type": "typeText",
+            "text": "Melhore este texto, mais claro e direto:\n"
+          }
+        },
+        {
+          "label": "Commit msg",
+          "color": "ffb020",
+          "action": {
+            "type": "typeText",
+            "text": "Escreva uma mensagem de commit (conventional commits) para este diff:\n"
+          }
+        },
+        {
+          "label": "Email",
+          "color": "ffb020",
+          "action": {
+            "type": "typeText",
+            "text": "Escreva um email profissional e curto sobre:\n"
+          }
+        },
+        {
+          "label": "Encurtar",
+          "color": "ffb020",
+          "action": {
+            "type": "typeText",
+            "text": "Deixe mais curto, sem perder o essencial:\n"
+          }
+        }
+      ]
+    }
+  ],
+  "baseProfile": "default",
+  "autoSwitch": true,
+  "brightness": 48,
+  "pressColor": "ffffff",
+  "presetsVersion": 1
+}

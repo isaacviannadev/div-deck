@@ -1,0 +1,47 @@
+[package]
+name = "divdeck"
+version = "0.1.0"
+description = "DIV Deck companion app"
+authors = ["Isaac Vianna"]
+edition = "2024"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png", "macos-private-api"] }
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serialport = { version = "4.10.1", default-features = false }
+enigo = "0.6.1"
+plist = "1.10.4"
+base64 = "0.23.1"
+tauri-plugin-autostart = "2.7.0"
+
+
+# Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6.5"
+objc2-app-kit = { version = "0.3.2", features = ["NSWorkspace", "NSRunningApplication"] }
+objc2-foundation = { version = "0.3.2", features = ["NSString"] }
+
+[target."cfg(windows)".dependencies]
+lnk = "0.6.4"
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_System_Threading"] }

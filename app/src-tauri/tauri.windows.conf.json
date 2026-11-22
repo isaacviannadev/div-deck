@@ -1,0 +1,29 @@
+{
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "DIV Deck",
+        "width": 1180,
+        "height": 760,
+        "minWidth": 980,
+        "minHeight": 640,
+        "transparent": false
+      }
+    ]
+  },
+  "bundle": {
+    "targets": [
+      "nsis"
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": [
+          "PortugueseBR",
+          "English"
+        ]
+      }
+    }
+  }
+}

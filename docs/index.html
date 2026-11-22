@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DIV Deck — 15 teclas para o seu fluxo</title>
+<meta name="description" content="DIV Deck: macro pad 3×5 com LEDs RGB por tecla. Baixe o app para macOS e Windows e comece em 2 minutos.">
+<meta property="og:title" content="DIV Deck">
+<meta property="og:description" content="15 teclas. Um perfil para cada app. Baixe o app e comece.">
+<meta property="og:image" content="img/app-dark.jpg">
+<meta name="theme-color" content="#000000">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23111'/%3E%3Cg fill='%2338d6ff'%3E%3Ccircle cx='8' cy='11' r='2'/%3E%3Ccircle cx='16' cy='11' r='2'/%3E%3Ccircle cx='24' cy='11' r='2'/%3E%3Ccircle cx='8' cy='21' r='2'/%3E%3Ccircle cx='16' cy='21' r='2'/%3E%3Ccircle cx='24' cy='21' r='2'/%3E%3C/g%3E%3C/svg%3E">
+<style>
+:root {
+  --bg: #000; --bg-2: #0b0b0d; --card: #121214; --line: #222226; --text: #f5f5f7; --text-2: #a1a1a6; --text-3: #6e6e73;
+  --accent: #2997ff; --cyan: #38d6ff;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif;
+  color: var(--text); background: var(--bg); -webkit-font-smoothing: antialiased;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+/* nav */
+nav { position: sticky; top: 0; z-index: 10; backdrop-filter: saturate(1.8) blur(20px); background: rgba(0,0,0,.72); border-bottom: 1px solid rgba(255,255,255,.06); }
+nav .wrap { display: flex; align-items: center; height: 48px; gap: 28px; font-size: 13px; }
+.logo { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 15px; color: var(--text); letter-spacing: -.01em; }
+.logo i { width: 18px; height: 12px; border-radius: 3px; background: radial-gradient(circle, var(--cyan) 1.4px, transparent 1.6px) 0 0 / 6px 6px; box-shadow: 0 0 0 1.5px #333; }
+nav .links { margin-left: auto; display: flex; gap: 24px; }
+nav .links a { color: var(--text-2); }
+nav .links a:hover { color: var(--text); text-decoration: none; }
+
+/* hero */
+.hero { text-align: center; padding: 88px 0 40px; overflow: hidden; }
+.eyebrow { color: var(--cyan); font-weight: 600; font-size: 17px; }
+h1 { font-size: clamp(48px, 8vw, 88px); line-height: 1.02; letter-spacing: -.035em; margin: 10px 0 16px; font-weight: 700; }
+.lead { font-size: clamp(19px, 2.2vw, 24px); color: var(--text-2); max-width: 640px; margin: 0 auto; line-height: 1.38; letter-spacing: -.01em; }
+.ctas { display: flex; gap: 14px; justify-content: center; align-items: center; margin-top: 32px; flex-wrap: wrap; }
+.btn { display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 22px; border-radius: 22px; background: var(--accent); color: #fff; font-size: 17px; font-weight: 500; }
+.btn:hover { text-decoration: none; filter: brightness(1.1); }
+.btn.ghost { background: none; color: var(--accent); padding: 0 6px; }
+.btn svg { width: 18px; height: 18px; }
+.meta { font-size: 13px; color: var(--text-3); margin-top: 12px; min-height: 18px; }
+
+/* deck */
+.stage { position: relative; margin: 64px auto 0; width: fit-content; perspective: 1400px; }
+.stage::before { content: ""; position: absolute; inset: -30% -40%; background: radial-gradient(closest-side, rgba(56,214,255,.16), transparent 70%); filter: blur(10px); }
+.deck { position: relative; padding: 22px; border-radius: 30px; background: linear-gradient(180deg, #2a2b30, #141518 75%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 0 0 1px #000, 0 50px 90px -30px rgba(0,0,0,.9); transform: rotateX(28deg); transform-origin: 50% 80%; }
+.grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+.k { --led: #38d6ff; position: relative; width: clamp(52px, 11vw, 96px); aspect-ratio: 1; border-radius: 17%; overflow: hidden;
+  background: linear-gradient(180deg, #34363c, #232428); box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 4px 0 #0c0d0f, 0 8px 14px -6px #000; transition: transform .12s, box-shadow .12s; }
+.k::after { content: ""; position: absolute; inset: 0; background: radial-gradient(70% 60% at 50% 118%, color-mix(in srgb, var(--led) 55%, transparent), transparent 70%); transition: opacity .4s; }
+.k::before { content: ""; position: absolute; top: 8%; left: 50%; width: 20%; height: 3%; translate: -50% 0; border-radius: 2px; background: var(--led); box-shadow: 0 0 10px 2px var(--led); }
+.k.down { transform: translateY(4px); box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 0 0 #0c0d0f, 0 0 30px -2px var(--led); }
+.k span { position: absolute; inset: 0; display: grid; place-items: center; font-size: clamp(11px, 1.6vw, 16px); font-weight: 600; color: rgba(255,255,255,.82); letter-spacing: .04em; z-index: 1; }
+
+/* sections */
+section { padding: 110px 0; }
+.alt { background: var(--bg-2); }
+h2 { font-size: clamp(36px, 5vw, 56px); letter-spacing: -.03em; line-height: 1.05; margin: 0 0 14px; font-weight: 700; }
+.sub { font-size: 21px; color: var(--text-2); max-width: 620px; line-height: 1.4; margin: 0 0 48px; }
+.center { text-align: center; } .center .sub { margin-left: auto; margin-right: auto; }
+
+.features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.f { background: var(--card); border-radius: 22px; padding: 28px; border: 1px solid var(--line); }
+.f b { display: block; font-size: 19px; margin: 14px 0 6px; letter-spacing: -.01em; }
+.f p { margin: 0; color: var(--text-2); line-height: 1.45; font-size: 15px; }
+.f .ic { width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; background: rgba(56,214,255,.12); color: var(--cyan); }
+.f .ic svg { width: 21px; height: 21px; }
+
+.shot { margin-top: 8px; border-radius: 18px; overflow: hidden; border: 1px solid var(--line); box-shadow: 0 40px 80px -30px rgba(0,0,0,.8); }
+.shot img { display: block; width: 100%; }
+
+.profiles { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.p { display: inline-flex; align-items: center; gap: 9px; height: 40px; padding: 0 16px 0 10px; border-radius: 20px; background: var(--card); border: 1px solid var(--line); font-size: 15px; }
+.p i { width: 20px; height: 20px; border-radius: 6px; }
+
+/* start */
+.steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; counter-reset: s; }
+.step { background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 26px; counter-increment: s; }
+.step::before { content: counter(s); display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--text); color: #000; font-weight: 700; font-size: 15px; }
+.step b { display: block; font-size: 18px; margin: 16px 0 8px; }
+.step p { margin: 0; color: var(--text-2); line-height: 1.5; font-size: 14.5px; }
+.os { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+.os .f b { margin-top: 0; }
+kbd { font-family: inherit; font-size: 13px; padding: 1px 6px; border-radius: 5px; background: #222226; border: 1px solid #333; }
+code { font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size: 13px; color: var(--text); }
+
+/* download */
+.dl { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 760px; margin: 0 auto; }
+.dl a { display: block; background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 30px; color: var(--text); text-align: left; transition: border-color .2s; }
+.dl a:hover { text-decoration: none; border-color: #3a3a40; }
+.dl a.rec { border-color: rgba(41,151,255,.55); box-shadow: 0 0 0 1px rgba(41,151,255,.25); }
+.dl svg { width: 34px; height: 34px; }
+.dl b { display: block; font-size: 22px; margin: 14px 0 4px; }
+.dl small { color: var(--text-2); font-size: 14px; }
+.dl .get { display: inline-block; margin-top: 18px; color: var(--accent); font-size: 15px; }
+
+details { border-bottom: 1px solid var(--line); padding: 18px 0; }
+details summary { cursor: pointer; font-size: 18px; font-weight: 500; list-style: none; display: flex; justify-content: space-between; }
+details summary::after { content: "+"; color: var(--text-2); font-weight: 300; font-size: 24px; line-height: 1; }
+details[open] summary::after { content: "−"; }
+details p { color: var(--text-2); line-height: 1.55; margin: 12px 0 0; }
+
+footer { padding: 40px 0 60px; color: var(--text-3); font-size: 12px; border-top: 1px solid var(--line); }
+footer .wrap { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+
+@media (max-width: 860px) {
+  .features, .steps { grid-template-columns: 1fr 1fr; }
+  .os, .dl { grid-template-columns: 1fr; }
+  nav .links a:not(.dl-link) { display: none; }
+}
+@media (max-width: 560px) { .features, .steps { grid-template-columns: 1fr; } .grid { gap: 8px; } .deck { padding: 14px; } section { padding: 80px 0; } }
+</style>
+</head>
+<body>
+
+<nav><div class="wrap">
+  <a class="logo" href="#"><i></i>DIV Deck</a>
+  <div class="links">
+    <a href="#comecar">Começar</a>
+    <a href="#recursos">Recursos</a>
+    <a href="#perguntas">Ajuda</a>
+    <a class="dl-link" href="#baixar">Baixar</a>
+  </div>
+</div></nav>
+
+<header class="hero"><div class="wrap">
+  <div class="eyebrow">DIV Deck</div>
+  <h1>15 teclas.<br>Um perfil para cada app.</h1>
+  <p class="lead">Abra apps, dispare atalhos, controle a música e digite prompts com um toque. O deck muda sozinho conforme o app em que você está.</p>
+  <div class="ctas">
+    <a class="btn" id="hero-dl" href="#baixar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 4v12M6 11l6 6 6-6M5 20h14"/></svg>
+      <span>Baixar o app</span>
+    </a>
+    <a class="btn ghost" href="#comecar">Primeiros passos ›</a>
+  </div>
+  <div class="meta" id="hero-meta">macOS 12+ · Windows 10/11 · grátis</div>
+
+  <div class="stage" aria-hidden="true"><div class="deck"><div class="grid" id="demo"></div></div></div>
+</div></header>
+
+<section id="comecar"><div class="wrap">
+  <h2>Comece em 2 minutos.</h2>
+  <p class="sub">Você chegou aqui pelo QR code da caixa? Ótimo. São quatro passos.</p>
+  <div class="steps">
+    <div class="step"><b>Conecte</b><p>Ligue o DIV Deck no computador com o cabo USB. As teclas respiram devagar: ele já funciona sozinho.</p></div>
+    <div class="step"><b>Instale o app</b><p>Baixe o instalador do seu sistema <a href="#baixar">aqui embaixo</a> e abra.</p></div>
+    <div class="step"><b>Dê a permissão</b><p>Para enviar atalhos, o app pede acesso. No Mac é a <em>Acessibilidade</em>; o próprio app abre a tela certa.</p></div>
+    <div class="step"><b>Escolha um perfil</b><p>Já vem com perfis para VS Code, Cursor, Figma, Discord, Steam, Dota 2, ChatGPT e Claude.</p></div>
+  </div>
+  <div class="os">
+    <div class="f"><b>Primeira abertura no Mac</b><p>Se o macOS disser que não pode verificar o app: clique com o botão direito em <strong>DIV Deck</strong> › <strong>Abrir</strong> › <strong>Abrir</strong>. Só na primeira vez. Depois: <em>Ajustes › Privacidade e Segurança › Acessibilidade</em> › ative <strong>DIV Deck</strong>.</p></div>
+    <div class="f"><b>Primeira abertura no Windows</b><p>Se aparecer “O Windows protegeu o computador”: clique em <strong>Mais informações</strong> › <strong>Executar assim mesmo</strong>. O deck é detectado automaticamente pela porta USB.</p></div>
+  </div>
+</div></section>
+
+<section class="alt" id="recursos"><div class="wrap">
+  <h2>Pequeno. Esperto.<br>Feito para o seu fluxo.</h2>
+  <p class="sub">Um app leve que mora na barra de menus e transforma cada tecla no que você precisar.</p>
+  <div class="features">
+    <div class="f"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l8.5 4.5L12 13 3.5 8.5z"/><path d="M3.5 12.5L12 17l8.5-4.5"/></svg></div><b>Perfis automáticos</b><p>Abriu o Figma? O deck vira Figma. Voltou ao código? Vira VS Code. Sem trocar nada à mão.</p></div>
+    <div class="f"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 9V6.5A2.5 2.5 0 1 0 6.5 9H9zm0 0h6m-6 0v6m6-6V6.5A2.5 2.5 0 1 1 17.5 9H15zm0 0v6m0 0h-6m6 0v2.5a2.5 2.5 0 1 0 2.5-2.5H15zm-6 0v2.5A2.5 2.5 0 1 1 6.5 15H9z"/></svg></div><b>Qualquer atalho</b><p>Grave apertando as teclas. Combine com abrir apps, links, comandos de terminal e textos prontos.</p></div>
+    <div class="f"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3.5"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6L7 7M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/></svg></div><b>Uma cor por tecla</b><p>LED RGB em cada tecla, com prévia ao vivo. As cores ficam salvas no deck mesmo sem o app.</p></div>
+    <div class="f"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 5.5v13l11-6.5z"/></svg></div><b>Mídia e volume</b><p>Play, pausa, próxima, volume e mudo em qualquer app — como as teclas do seu teclado.</p></div>
+    <div class="f"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7V5h14v2M12 5v14M9 19h6"/></svg></div><b>Prompts num toque</b><p>Perfis de ChatGPT e Claude com prompts prontos: explicar, revisar, testes, commit, resumo.</p></div>
+    <div class="f"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M7 10l3 2-3 2M12.5 14.5H17"/></svg></div><b>Teclas mecânicas</b><p>Switches MX com sockets hot-swap: troque switches e keycaps sem solda. Faces da caixa intercambiáveis.</p></div>
+  </div>
+  <div class="shot" style="margin-top:56px"><picture><source srcset="img/app-light.jpg" media="(prefers-color-scheme: light)"><img src="img/app-dark.jpg" alt="O app DIV Deck no Mac, editando o perfil do Cursor" loading="lazy"></picture></div>
+</div></section>
+
+<section class="center"><div class="wrap">
+  <h2>Perfis prontos.</h2>
+  <p class="sub">Funcionam desde o primeiro minuto. Edite, duplique ou crie os seus.</p>
+  <div class="profiles">
+    <span class="p"><i style="background:#38d6ff"></i>Padrão</span>
+    <span class="p"><i style="background:#3ea6ff"></i>VS Code</span>
+    <span class="p"><i style="background:#e8e8e8"></i>Cursor</span>
+    <span class="p"><i style="background:#a259ff"></i>Figma</span>
+    <span class="p"><i style="background:#5865f2"></i>Discord</span>
+    <span class="p"><i style="background:#66c0f4"></i>Steam</span>
+    <span class="p"><i style="background:#e0332b"></i>Dota 2</span>
+    <span class="p"><i style="background:#10a37f"></i>ChatGPT</span>
+    <span class="p"><i style="background:#d97757"></i>Claude</span>
+  </div>
+</div></section>
+
+<section class="alt center" id="baixar"><div class="wrap">
+  <h2>Baixe o app.</h2>
+  <p class="sub">Grátis, para sempre. Atualizações aparecem aqui.</p>
+  <div class="dl">
+    <a id="dl-mac" href="https://github.com/isaacviannadev/div-deck/releases/latest">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.4 12.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9s-2.1-.9-3.4-.9C5.8 6.7 4.2 7.7 3.3 9.3c-1.9 3.2-.5 8 1.3 10.6.9 1.3 1.9 2.7 3.3 2.6 1.3-.1 1.8-.8 3.4-.8s2 .8 3.4.8 2.3-1.3 3.2-2.6c1-1.5 1.4-2.9 1.4-3-.1 0-2.9-1.1-2.9-4.3zM13.9 4.9c.7-.9 1.2-2 1.1-3.2-1 0-2.3.7-3 1.6-.7.8-1.2 2-1.1 3.1 1.1.1 2.3-.6 3-1.5z"/></svg>
+      <b>macOS</b><small>Apple Silicon e Intel · macOS 12 ou mais novo</small>
+      <span class="get">Baixar .dmg ↓</span>
+    </a>
+    <a id="dl-win" href="https://github.com/isaacviannadev/div-deck/releases/latest">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 5.5l7.4-1v7H3zM11.3 4.4L21 3v8.5h-9.7zM3 12.4h7.4v7.1L3 18.5zm8.3 0H21V21l-9.7-1.4z"/></svg>
+      <b>Windows</b><small>Windows 10 e 11 · 64-bit</small>
+      <span class="get">Baixar instalador ↓</span>
+    </a>
+  </div>
+  <p class="meta" id="version">Versão mais recente no GitHub</p>
+</div></section>
+
+<section id="perguntas"><div class="wrap" style="max-width:760px">
+  <h2>Perguntas.</h2>
+  <details><summary>O deck não aparece como conectado.</summary><p>Use um cabo USB de dados (alguns cabos só carregam). No Mac, o chip USB costuma funcionar sem driver; se não, instale o driver <a href="https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers">CP210x</a>. Feche outros programas que estejam usando a porta serial (Arduino IDE, monitor serial).</p></details>
+  <details><summary>Os atalhos não funcionam no Mac.</summary><p>Falta a permissão de Acessibilidade. Em <em>Ajustes › Privacidade e Segurança › Acessibilidade</em>, remova <strong>DIV Deck</strong> com “–”, adicione de novo com “+” e ative. Isso também resolve depois de atualizar o app.</p></details>
+  <details><summary>O perfil não muda sozinho.</summary><p>Ative “Trocar pelo app em foco” na barra lateral e confira se o app está vinculado ao perfil (botão “Vincular app”). Enquanto a janela do DIV Deck está em foco o perfil não muda — de propósito, para você editar em paz.</p></details>
+  <details><summary>As cores somem quando fecho o app.</summary><p>Clique em “Gravar cores no deck”. Assim ele guarda as cores e continua aceso, respirando, mesmo sem o computador conectado ao app.</p></details>
+  <details><summary>Posso trocar os switches e as keycaps?</summary><p>Sim. As teclas usam sockets hot-swap para switches MX de 3 e 5 pinos: puxe com um extrator e encaixe o novo. Keycaps MX padrão servem.</p></details>
+</div></section>
+
+<footer><div class="wrap">
+  <span>© DIV Tecnologia · DIV Deck</span>
+  <span><a href="https://github.com/isaacviannadev/div-deck">Código no GitHub</a> · <a href="https://github.com/isaacviannadev/div-deck/releases">Todas as versões</a></span>
+</div></footer>
+
+<script>
+// ---- animated demo deck
+const keys = [
+  ["▶", "#38d6ff"], ["⏮", "#38d6ff"], ["⏭", "#38d6ff"], ["−", "#7c5cff"], ["+", "#7c5cff"],
+  ["⌘L", "#e8e8e8"], ["⌘K", "#e8e8e8"], ["⌘I", "#e8e8e8"], ["F5", "#ffb020"], ["⌘S", "#30d158"],
+  ["⇧⌘P", "#3ea6ff"], ["⌘P", "#3ea6ff"], ["⌘/", "#3ea6ff"], ["⌃`", "#30d158"], ["⌘B", "#ff375f"],
+];
+const grid = document.getElementById("demo");
+keys.forEach(([t, c]) => { const k = document.createElement("div"); k.className = "k"; k.style.setProperty("--led", c); k.innerHTML = `<span>${t}</span>`; grid.appendChild(k); });
+const ks = [...grid.children];
+setInterval(() => { const k = ks[Math.floor(Math.random() * ks.length)]; k.classList.add("down"); setTimeout(() => k.classList.remove("down"), 160); }, 900);
+
+// ---- OS-aware download links from the latest GitHub release
+const isWin = /Windows/i.test(navigator.userAgent);
+const isMac = /Mac/i.test(navigator.userAgent) && !/iPhone|iPad/i.test(navigator.userAgent);
+document.getElementById(isWin ? "dl-win" : "dl-mac").classList.add("rec");
+fetch("https://api.github.com/repos/isaacviannadev/div-deck/releases/latest")
+  .then((r) => (r.ok ? r.json() : Promise.reject()))
+  .then((rel) => {
+    const find = (re) => rel.assets.find((a) => re.test(a.name));
+    const mac = find(/universal\.dmg$/i) || find(/\.dmg$/i);
+    const win = find(/setup\.exe$/i) || find(/\.msi$/i) || find(/\.exe$/i);
+    if (mac) document.getElementById("dl-mac").href = mac.browser_download_url;
+    if (win) document.getElementById("dl-win").href = win.browser_download_url;
+    document.getElementById("version").textContent = `Versão ${rel.tag_name.replace(/^v/, "")} · ${new Date(rel.published_at).toLocaleDateString("pt-BR")}`;
+    const mine = isWin ? win : isMac ? mac : null;
+    if (mine) {
+      const a = document.getElementById("hero-dl");
+      a.href = mine.browser_download_url;
+      a.querySelector("span").textContent = isWin ? "Baixar para Windows" : "Baixar para Mac";
+      document.getElementById("hero-meta").textContent = `Versão ${rel.tag_name.replace(/^v/, "")} · ${(mine.size / 1048576).toFixed(1)} MB · grátis`;
+    }
+  })
+  .catch(() => {});
+</script>
+</body>
+</html>
