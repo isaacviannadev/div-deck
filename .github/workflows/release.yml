@@ -1,11 +1,11 @@
 name: Release
 
-# Push a tag like v0.2.0 to build the macOS (.dmg, universal) and Windows (setup .exe) installers
-# and publish them as a GitHub release. The landing page in docs/ links to the latest one.
+# Publish a release (tag like v0.2.0) on GitHub — web UI or `gh release create v0.2.0` — and this
+# builds the macOS (.dmg, universal) and Windows (setup .exe) installers and attaches them to it.
+# The landing page in docs/ always links to the latest release.
 on:
-  push:
-    tags: ["v*"]
-  workflow_dispatch:
+  release:
+    types: [published]
 
 permissions:
   contents: write
