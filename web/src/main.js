@@ -7,7 +7,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ScrollCraft } from 'scroll-craft';
-import { svg } from './icons.js';
+import { svg, drawIcon, hasIcon } from './icons.js';
 import presets from './presets.json';
 
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -21,6 +21,28 @@ document.querySelectorAll('[data-icon]').forEach((el) => {
   el.insertAdjacentHTML('afterbegin', svg(el.dataset.icon, +(el.dataset.size || 18), el.dataset.color || 'currentColor'));
 });
 
+// ============================================================== key legends per profile
+// the site shows what each key does in each profile; the real caps are translucent PLA lit by the LED
+const MOD = { ctrl: '⌃', alt: '⌥', shift: '⇧', cmd: '⌘' };
+const KEYG = { Return: '↩', Space: '␣', Tab: '⇥', Escape: 'esc', Backspace: '⌫', Delete: '⌦', Left: '←', Right: '→', Up: '↑', Down: '↓' };
+const shortcutText = (a) => ['ctrl', 'alt', 'shift', 'cmd'].filter((m) => a.mods.includes(m)).map((m) => MOD[m]).join('') + (KEYG[a.key] ?? (a.key.length === 1 ? a.key.toUpperCase() : a.key));
+const mediaIcon = { playPause: 'play', next: 'next', previous: 'prev', volumeUp: 'volup', volumeDown: 'voldown', mute: 'mute' };
+const appIcon = { 'Visual Studio Code': 'vscode', Cursor: 'cursor', Figma: 'figma', ChatGPT: 'chatgpt', Claude: 'claude', Discord: 'discord', Steam: 'steam' };
+
+function legendsFor(profileId) {
+  const p = presets.profiles.find((x) => x.id === profileId);
+  return p.keys.map((k) => {
+    const a = k.action;
+    let icon = null, text = null;
+    if (a.type === 'media') icon = mediaIcon[a.key];
+    else if (a.type === 'openApp') icon = appIcon[a.name];
+    else if (a.type === 'openUrl') icon = k.label.startsWith('Dota') ? 'dota2' : 'steam';
+    else if (a.type === 'shortcut') { icon = k.label === 'Print' ? 'camera' : null; text = icon ? null : shortcutText(a); }
+    else text = k.label.slice(0, 4);
+    if (icon && !hasIcon(icon)) { text = k.label.slice(0, 3); icon = null; }
+    return { icon, text, label: k.label };
+  });
+}
 const STORY_PROFILES = ['default', 'vscode', 'figma', 'discord'];
 const PROFILE_NAMES = { default: 'Padrão', vscode: 'VS Code', figma: 'Figma', discord: 'Discord' };
 
@@ -79,7 +101,8 @@ function initThree() {
     tray: new THREE.MeshPhysicalMaterial({ color: 0x1a1b1f, roughness: 0.6, clearcoat: 0.15, clearcoatRoughness: 0.6 }),
     lid: new THREE.MeshPhysicalMaterial({ color: 0x24262b, roughness: 0.55 }),
     cover: new THREE.MeshPhysicalMaterial({ color: 0x0d0e10, roughness: 0.38, clearcoat: 0.5, clearcoatRoughness: 0.35 }),
-    cap: new THREE.MeshPhysicalMaterial({ color: 0xd2d3d7, roughness: 0.6, clearcoat: 0.25, clearcoatRoughness: 0.5 }),
+    // frosted translucent PLA: the LED below shines through the whole cap
+    cap: new THREE.MeshPhysicalMaterial({ color: 0xe6ebf2, roughness: 0.5, transmission: 0.72, thickness: 5, ior: 1.46, attenuationColor: new THREE.Color(0xdfe7f2), attenuationDistance: 14, clearcoat: 0.25, clearcoatRoughness: 0.4 }),
     sw: new THREE.MeshPhysicalMaterial({ color: 0x30343d, roughness: 0.3, metalness: 0.05 }),
     stem: new THREE.MeshPhysicalMaterial({ color: 0x2f6df6, roughness: 0.35 }),
     pcb: new THREE.MeshPhysicalMaterial({ color: 0x0f1012, roughness: 0.32, clearcoat: 0.6 }),
@@ -140,11 +163,34 @@ function initThree() {
   }
   devkit.position.set(26, 8.2, 7.7);
 
-  // ---- a profile only changes what the keys do and their LED colours (the keycaps stay blank)
+  // ---- a profile changes what each key does (icon / label on top) and its LED colour
+  const legendCanvas = [], legendTex = [];
   function applyProfile(profileId) {
     const p = presets.profiles.find((x) => x.id === profileId);
     p.keys.forEach((k, i) => ledTarget[i].set('#' + k.color));
+    legendsFor(profileId).forEach((l, k) => {
+      const c = legendCanvas[k]; if (!c) return;
+      const g = c.getContext('2d');
+      g.clearRect(0, 0, 256, 256);
+      g.shadowColor = 'rgba(255,255,255,.35)'; g.shadowBlur = 6;
+      const ink = '#16181d';
+      if (l.icon) drawIcon(g, l.icon, 128, l.text ? 112 : 120, 118, ink);
+      else if (l.text) {
+        g.fillStyle = ink; g.textAlign = 'center'; g.textBaseline = 'middle';
+        const fs = l.text.length > 3 ? 54 : l.text.length > 2 ? 70 : 92;
+        g.font = `600 ${fs}px -apple-system, "SF Pro Display", Inter, system-ui, sans-serif`;
+        g.fillText(l.text, 128, 110);
+      }
+      if (l.label) {
+        g.fillStyle = 'rgba(22,24,29,.78)'; g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.font = `600 30px -apple-system, "SF Pro Text", Inter, system-ui, sans-serif`;
+        g.fillText(l.label.length > 10 ? l.label.slice(0, 9) + '…' : l.label, 128, 214);
+      }
+      legendTex[k].needsUpdate = true;
+      flip[k] = 1;
+    });
   }
+  const flip = new Array(15).fill(0); // little press when the legend changes
 
   const caps = [], capMats = [];
   const pick = []; // meshes for raycasting
@@ -164,6 +210,12 @@ function initThree() {
       const body = new THREE.Mesh(capGeos[Math.floor(k / 5)], mat.cap.clone()); capMats[k] = body.material; body.userData.key = k; cap.add(body); pick.push(body);
       // the MX stem travels with the keycap (geometry is in switch coordinates, plate top = 0)
       const stem = new THREE.Mesh(stemGeo, mat.stem); stem.position.z = -CAP_Z; cap.add(stem);
+      // legend printed on top of the cap (canvas texture redrawn per profile)
+      const c = document.createElement('canvas'); c.width = c.height = 256; legendCanvas.push(c);
+      const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8; legendTex.push(tex);
+      const capTop = [8.54, 7.6, 8.2][Math.floor(k / 5)];
+      const legend = new THREE.Mesh(new THREE.PlaneGeometry(11, 11), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, toneMapped: false }));
+      legend.position.z = capTop + 0.32; legend.rotation.z = Math.PI; legend.renderOrder = 2; cap.add(legend);
       caps.push(cap);
     }
     // centre the model on the pivot
@@ -304,8 +356,9 @@ function initThree() {
       leds[k].material.emissive.copy(col); leds[k].material.emissiveIntensity = 2 + I * 2;
       glows[k].material.color.copy(col).multiplyScalar(0.55 * I * (1 - ex * 0.85));
       beams[k].material.color.copy(col); beams[k].material.opacity = wave * (0.18 + ring * 0.5) * ex;
-      if (capMats[k]) { capMats[k].emissive.copy(col); capMats[k].emissiveIntensity = wave * (0.1 + ring * 0.22) + state.flash[k] * 0.15 + hov * 0.06; }
-      if (caps[k]) caps[k].position.z = lerp(caps[k].position.z, CAP_Z - (hov ? 2.2 : 0) - state.flash[k] * 1.2, 0.25);
+      flip[k] = Math.max(0, flip[k] - 0.05);
+      if (capMats[k]) { capMats[k].emissive.copy(col); capMats[k].emissiveIntensity = (0.26 + 0.12 * I) * (1 - ex * 0.6) + wave * (0.12 + ring * 0.3) + state.flash[k] * 0.25 + hov * 0.12; }
+      if (caps[k]) caps[k].position.z = lerp(caps[k].position.z, CAP_Z - (hov ? 2.2 : 0) - state.flash[k] * 1.2 - Math.sin(flip[k] * Math.PI) * 1.4, 0.25);
     }
 
     // captions
