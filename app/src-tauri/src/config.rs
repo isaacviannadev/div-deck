@@ -136,6 +136,23 @@ impl Config {
             }
             self.presets_version = crate::presets::PRESETS_VERSION;
         }
+        // built-in profiles keep the apps they ship with: those can't be unlinked or moved
+        for preset in crate::presets::all() {
+            if self.profile(&preset.id).is_none() {
+                continue;
+            }
+            for p in &mut self.profiles {
+                if p.id == preset.id {
+                    for a in preset.apps.iter().rev() {
+                        if !p.apps.iter().any(|x| x.eq_ignore_ascii_case(a)) {
+                            p.apps.insert(0, a.clone());
+                        }
+                    }
+                } else {
+                    p.apps.retain(|x| !preset.apps.iter().any(|a| a.eq_ignore_ascii_case(x)));
+                }
+            }
+        }
         for p in &mut self.profiles {
             p.keys.resize(KEYS, KeyConfig::default());
         }

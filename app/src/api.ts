@@ -128,6 +128,16 @@ export function installedApps(): Promise<AppInfo[]> {
   return appsPromise;
 }
 
+// ------------------------------------------------------------------ built-in profiles
+
+/** Apps that ship linked to a built-in profile. They can't be unlinked or moved elsewhere. */
+const PRESET_APPS: Record<string, string[]> = Object.fromEntries(
+  (presets as unknown as Config).profiles.map((p) => [p.id, p.apps]),
+);
+export const lockedApps = (profileId: string): string[] => PRESET_APPS[profileId] ?? [];
+export const presetOwner = (app: string): string | undefined =>
+  Object.keys(PRESET_APPS).find((id) => PRESET_APPS[id].some((a) => a.toLowerCase() === app.toLowerCase()));
+
 // ------------------------------------------------------------------ mock (browser preview)
 
 const mock = (() => {

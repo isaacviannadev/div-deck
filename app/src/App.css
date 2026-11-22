@@ -118,6 +118,14 @@ input[type=range] { flex: 1; accent-color: var(--accent); margin: 0; }
 .btn.wide { width: 100%; }
 .btn.plain { background: none; box-shadow: none; }
 .btn.danger { color: var(--danger); }
+.btn.primary { background: var(--accent); color: #fff; box-shadow: none; min-width: 64px; }
+.btn.primary:disabled { background: var(--fill); color: var(--text-3); }
+.tool-sep { width: 1px; height: 18px; background: var(--sep); margin: 5px 6px 0; }
+.tool-actions .btn { margin-top: 1px; }
+.tool-btn:disabled { opacity: .35; }
+.app-chip.locked { padding-right: 9px; }
+.chip-lock { color: var(--text-3); margin-left: 2px; }
+.unsaved { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-left: auto; flex: none; }
 
 /* ================================================= main */
 .main { background: var(--main); display: flex; flex-direction: column; min-width: 0; position: relative; }
