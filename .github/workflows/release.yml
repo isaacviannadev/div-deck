@@ -47,6 +47,9 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # signs the update bundles + latest.json that the in-app updater checks
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
         with:
           projectPath: app
           tagName: ${{ github.ref_name }}
@@ -59,4 +62,5 @@ jobs:
             - **Windows**: `DIV.Deck_*_x64-setup.exe`. Se aparecer o SmartScreen: Mais informações › Executar assim mesmo.
           releaseDraft: false
           prerelease: false
+          includeUpdaterJson: true
           args: ${{ matrix.args }}

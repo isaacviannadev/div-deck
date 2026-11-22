@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, isTauri, isWindows, lockedApps, presetOwner, type AppStateDto, type Config, type DeckStatus, type KeyConfig, type Profile } from "./api";
+import { api, checkForUpdate, isTauri, isWindows, lockedApps, presetOwner, type UpdateInfo, type AppStateDto, type Config, type DeckStatus, type KeyConfig, type Profile } from "./api";
 import { AppPicker, Deck, KeyEditor } from "./components";
 import { AppIcon, Icon, Toggle, appName, useApps } from "./ui";
 import "./App.css";
@@ -47,6 +47,23 @@ function Main({ initial }: { initial: AppStateDto }) {
     return () => { subs.forEach((s) => s.then((u) => u())); clearInterval(ax); };
   }, []);
 
+  // ---- updates: check at launch and every 6 h
+  const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  const [updating, setUpdating] = useState<number | null>(null);
+  useEffect(() => {
+    const run = () => checkForUpdate().then((u) => u && setUpdate(u));
+    run();
+    const t = setInterval(run, 6 * 3600_000);
+    return () => clearInterval(t);
+  }, []);
+  const installUpdate = async () => {
+    if (!update) return;
+    if (dirtyRef.current) await keys.current.save();
+    setUpdating(0);
+    try { await update.install(setUpdating); }
+    catch { setUpdating(null); say("Não foi possível atualizar. Tente de novo mais tarde."); }
+  };
+
   const say = (msg: string) => { setFlash(msg); setTimeout(() => setFlash(null), 2200); };
 
   // ---- profile edits: undo / redo history (profiles only; settings save right away)
@@ -86,6 +103,7 @@ function Main({ initial }: { initial: AppStateDto }) {
   };
 
   const dirty = JSON.stringify(config.profiles) !== JSON.stringify(saved.profiles);
+  const dirtyRef = useRef(dirty); dirtyRef.current = dirty;
   const save = async () => {
     if (!dirty) return;
     const next = { ...savedRef.current, profiles: config.profiles, baseProfile: config.profiles.some((p) => p.id === config.baseProfile) ? config.baseProfile : config.profiles[0].id };
@@ -212,6 +230,17 @@ function Main({ initial }: { initial: AppStateDto }) {
         </nav>
 
         <div className="side-foot">
+          {update && (
+            <div className="update">
+              <div>
+                <strong>Atualização disponível</strong>
+                <small>Versão {update.version}</small>
+              </div>
+              <button className="btn primary small" disabled={updating !== null} onClick={installUpdate}>
+                {updating === null ? "Atualizar" : updating < 100 ? `${updating}%` : "Reiniciando…"}
+              </button>
+            </div>
+          )}
           <div className="slider">
             <Icon name="sun" size={14} />
             <input type="range" min={0} max={96} value={config.brightness}

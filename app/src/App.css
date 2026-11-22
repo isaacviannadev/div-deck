@@ -256,3 +256,9 @@ select.input { appearance: auto; padding: 5px 6px; }
 
 @media (max-width: 1140px) { .key { width: 82px; height: 82px; border-radius: 14px; } .deck-face { gap: 9px; } }
 .kbd { font-family: -apple-system, "SF Pro Rounded", system-ui; font-weight: 600; letter-spacing: .06em; color: rgba(255, 255, 255, .9); white-space: nowrap; }
+
+/* ================================================= update card */
+.update { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); margin-bottom: 4px; }
+.update div { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.update strong { font-size: 12px; }
+.update small { color: var(--text-2); font-size: 11px; }

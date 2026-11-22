@@ -198,3 +198,29 @@ const mock = (() => {
     },
   };
 })();
+
+// ------------------------------------------------------------------ updates (GitHub releases)
+
+export interface UpdateInfo { version: string; notes?: string; install: (onProgress: (pct: number) => void) => Promise<void> }
+
+/** Looks for a newer signed release. Resolves null in the browser preview or when up to date. */
+export async function checkForUpdate(): Promise<UpdateInfo | null> {
+  if (!isTauri) return null;
+  const { check } = await import("@tauri-apps/plugin-updater");
+  const u = await check().catch(() => null);
+  if (!u) return null;
+  return {
+    version: u.version,
+    notes: u.body ?? undefined,
+    install: async (onProgress) => {
+      let total = 0, done = 0;
+      await u.downloadAndInstall((e) => {
+        if (e.event === "Started") total = e.data.contentLength ?? 0;
+        else if (e.event === "Progress") { done += e.data.chunkLength; if (total) onProgress(Math.min(99, Math.round((done / total) * 100))); }
+        else if (e.event === "Finished") onProgress(100);
+      });
+      const { relaunch } = await import("@tauri-apps/plugin-process");
+      await relaunch();
+    },
+  };
+}
