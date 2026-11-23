@@ -138,7 +138,7 @@ export function KeyEditor({ model = "mx", index, value, profiles, pressColor, on
   return (
     <div className="inspector">
       <div className="preview">
-        <div className={`key big ${empty ? "empty" : ""}`} style={{ ["--led" as string]: `#${value.color}` }}>
+        <div className={`key big ${model === "pro" ? "pro" : ""} ${empty ? "empty" : ""}`} style={{ ["--led" as string]: `#${value.color}` }}>
           <span className="led" />
           <span className="key-glyph">
             <KeyGlyph action={a} size={34} />
