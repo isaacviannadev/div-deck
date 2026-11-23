@@ -3,21 +3,29 @@
 
 use crate::config::{Action, MediaKey};
 use enigo::{Direction, Enigo, Key, Keyboard, Settings};
-use std::{process::Command, sync::mpsc, thread, time::Duration};
+use std::{cell::RefCell, process::Command, sync::{mpsc, OnceLock}, thread, time::Duration};
 
 pub enum Job {
     Run(Action),
 }
 
-pub fn spawn_worker() -> mpsc::Sender<Job> {
+/// Needed to reach the main thread: on recent macOS the keyboard-layout lookups that enigo does
+/// (TSMGetInputSourceProperty) abort the app when called from any other thread.
+static APP: OnceLock<tauri::AppHandle> = OnceLock::new();
+
+thread_local! {
+    static ENIGO: RefCell<Option<Enigo>> = const { RefCell::new(None) };
+}
+
+pub fn spawn_worker(app: tauri::AppHandle) -> mpsc::Sender<Job> {
+    let _ = APP.set(app);
     let (tx, rx) = mpsc::channel::<Job>();
     thread::Builder::new()
         .name("divdeck-actions".into())
         .spawn(move || {
-            let mut enigo: Option<Enigo> = None;
             for job in rx {
                 let Job::Run(action) = job;
-                if let Err(e) = run(&action, &mut enigo) {
+                if let Err(e) = run_at(&action, 0) {
                     eprintln!("[divdeck] action failed: {e}");
                 }
             }
@@ -26,22 +34,45 @@ pub fn spawn_worker() -> mpsc::Sender<Job> {
     tx
 }
 
-fn enigo(slot: &mut Option<Enigo>) -> Result<&mut Enigo, String> {
-    if slot.is_none() {
-        let settings = Settings { open_prompt_to_get_permissions: true, ..Settings::default() };
-        *slot = Some(Enigo::new(&settings).map_err(|e| e.to_string())?);
+fn with_enigo<F>(f: F) -> Result<(), String>
+where
+    F: FnOnce(&mut Enigo) -> Result<(), String>,
+{
+    ENIGO.with(|cell| {
+        let mut slot = cell.borrow_mut();
+        if slot.is_none() {
+            let settings = Settings { open_prompt_to_get_permissions: true, ..Settings::default() };
+            *slot = Some(Enigo::new(&settings).map_err(|e| e.to_string())?);
+        }
+        f(slot.as_mut().unwrap())
+    })
+}
+
+/// Run a keyboard/media operation. macOS: on the main thread (waits for it), elsewhere: right here.
+fn kb<F>(f: F) -> Result<(), String>
+where
+    F: FnOnce(&mut Enigo) -> Result<(), String> + Send + 'static,
+{
+    #[cfg(target_os = "macos")]
+    {
+        let app = APP.get().ok_or("app not ready")?;
+        let (tx, rx) = mpsc::channel();
+        app.run_on_main_thread(move || {
+            let _ = tx.send(with_enigo(f));
+        })
+        .map_err(|e| e.to_string())?;
+        rx.recv_timeout(Duration::from_secs(5)).map_err(|_| "keyboard timed out".to_string())?
     }
-    Ok(slot.as_mut().unwrap())
+    #[cfg(not(target_os = "macos"))]
+    {
+        with_enigo(f)
+    }
 }
 
 /// Gap between the steps of a sequence, so apps keep up with synthetic input.
 const STEP_GAP: Duration = Duration::from_millis(60);
 
-fn run(action: &Action, slot: &mut Option<Enigo>) -> Result<(), String> {
-    run_at(action, slot, 0)
-}
-
-fn run_at(action: &Action, slot: &mut Option<Enigo>, depth: u8) -> Result<(), String> {
+fn run_at(action: &Action, depth: u8) -> Result<(), String> {
     match action {
         Action::None | Action::SwitchProfile { .. } => Ok(()), // profile switch is handled by the caller
         Action::OpenApp { path, name } => open_app(path, name),
@@ -59,18 +90,18 @@ fn run_at(action: &Action, slot: &mut Option<Enigo>, depth: u8) -> Result<(), St
                 if i > 0 && !matches!(step, Action::Wait { .. }) {
                     thread::sleep(STEP_GAP);
                 }
-                run_at(step, slot, depth + 1)?;
+                run_at(step, depth + 1)?;
             }
             Ok(())
         }
         Action::TypeText { text, submit } => {
-            let e = enigo(slot)?;
             if !text.is_empty() {
-                e.text(text).map_err(|e| e.to_string())?;
+                let t = text.clone();
+                kb(move |e| e.text(&t).map_err(|e| e.to_string()))?;
             }
             if *submit {
                 thread::sleep(Duration::from_millis(40));
-                e.key(Key::Return, Direction::Click).map_err(|e| e.to_string())?;
+                kb(|e| e.key(Key::Return, Direction::Click).map_err(|e| e.to_string()))?;
             }
             Ok(())
         }
@@ -83,20 +114,21 @@ fn run_at(action: &Action, slot: &mut Option<Enigo>, depth: u8) -> Result<(), St
                 MediaKey::VolumeDown => Key::VolumeDown,
                 MediaKey::Mute => Key::VolumeMute,
             };
-            enigo(slot)?.key(k, Direction::Click).map_err(|e| e.to_string())
+            kb(move |e| e.key(k, Direction::Click).map_err(|e| e.to_string()))
         }
         Action::Shortcut { mods, key } => {
             let main = parse_key(key).ok_or_else(|| format!("unknown key '{key}'"))?;
             let mods: Vec<Key> = mods.iter().filter_map(|m| parse_mod(m)).collect();
-            let e = enigo(slot)?;
-            for m in &mods {
-                e.key(*m, Direction::Press).map_err(|e| e.to_string())?;
-            }
-            let res = e.key(main, Direction::Click).map_err(|e| e.to_string());
-            for m in mods.iter().rev() {
-                let _ = e.key(*m, Direction::Release);
-            }
-            res
+            kb(move |e| {
+                for m in &mods {
+                    e.key(*m, Direction::Press).map_err(|e| e.to_string())?;
+                }
+                let res = e.key(main, Direction::Click).map_err(|e| e.to_string());
+                for m in mods.iter().rev() {
+                    let _ = e.key(*m, Direction::Release);
+                }
+                res
+            })
         }
     }
 }

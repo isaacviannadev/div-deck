@@ -741,7 +741,7 @@ pub fn run() {
                 config_path,
                 icon_cache,
                 decks: decks.clone(),
-                actions: Mutex::new(actions::spawn_worker()),
+                actions: Mutex::new(actions::spawn_worker(app.handle().clone())),
                 icon_map: Mutex::new(icon_map),
                 tile_icons,
             });
