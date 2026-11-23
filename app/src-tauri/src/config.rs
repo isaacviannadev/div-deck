@@ -54,11 +54,15 @@ pub struct KeyConfig {
     /// LED colour as "rrggbb".
     pub color: String,
     pub action: Action,
+    /// Icon shown on a DIV Deck Pro tile: {"kind":"auto"|"brand"|"emoji"|"image"|"none", ...}.
+    /// Only the UI reads it (it renders the picture); kept as-is here.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<serde_json::Value>,
 }
 
 impl Default for KeyConfig {
     fn default() -> Self {
-        Self { label: String::new(), color: "1c1f26".into(), action: Action::None }
+        Self { label: String::new(), color: "1c1f26".into(), action: Action::None, icon: None }
     }
 }
 

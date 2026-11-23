@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, checkForUpdate, isTauri, isWindows, lockedApps, presetOwner, type UpdateInfo, type AppStateDto, type Config, type DeckInfo, type KeyConfig, type Profile, modelName } from "./api";
 import { AppPicker, Deck, KeyEditor } from "./components";
 import { AppIcon, Icon, Toggle, appName, useApps } from "./ui";
+import { syncTileIcons } from "./tileIcons";
 import "./App.css";
 import logoSvg from "./divdeck-logo.svg?raw";
 
@@ -21,6 +22,12 @@ function Main({ initial }: { initial: AppStateDto }) {
   const [config, setConfig] = useState<Config>(initial.config);
   /** Last config written to disk / the deck. Profile edits stay local until "Salvar". */
   const [saved, setSaved] = useState<Config>(initial.config);
+  // Pro tiles: render and cache the pictures of the saved profiles (the backend streams them to the deck)
+  useEffect(() => {
+    if (apps.length === 0 && !isWindows) return; // wait for the app list (app icons)
+    const t = setTimeout(() => { syncTileIcons(saved, apps).catch(() => {}); }, 400);
+    return () => clearTimeout(t);
+  }, [saved, apps]);
   const [decks, setDecks] = useState<DeckInfo[]>(initial.decks);
   /** Deck being configured (LED previews, "Gravar no deck", profile choice go to it). */
   const [deckId, setDeckId] = useState<string | null>(initial.decks[0]?.id ?? null);

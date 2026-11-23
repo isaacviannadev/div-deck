@@ -6,7 +6,7 @@ use crate::config::{Action, KeyConfig, MediaKey, Profile};
 pub const PRESETS_VERSION: u32 = 1;
 
 fn k(label: &str, color: &str, action: Action) -> KeyConfig {
-    KeyConfig { label: label.into(), color: color.into(), action }
+    KeyConfig { label: label.into(), color: color.into(), action, icon: None }
 }
 fn sc(mods: &[&str], key: &str) -> Action {
     Action::Shortcut { mods: mods.iter().map(|s| s.to_string()).collect(), key: key.into() }

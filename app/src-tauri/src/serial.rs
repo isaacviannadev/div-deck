@@ -221,6 +221,10 @@ fn session(app: &AppHandle, decks: &Decks, mut port: Box<dyn SerialPort>, info: 
         match reader.poll(port.as_mut()) {
             Ok(lines) => {
                 for line in lines {
+                    if let Some(hash) = line.strip_prefix("NEED ") {
+                        crate::on_icon_needed(app, &id, hash.trim());
+                        continue;
+                    }
                     let mut it = line.split_whitespace();
                     let (Some(kind), Some(k)) = (it.next(), it.next().and_then(|k| k.parse::<u8>().ok())) else { continue };
                     match kind {

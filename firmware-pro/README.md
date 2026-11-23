@@ -26,7 +26,7 @@ quadrado funciona como apertar uma tecla do DIV Deck MX.
 ## Gravar
 
 **Sem instalar nada:** no Chrome ou Edge abra https://espressif.github.io/esptool-js/ , ligue a placa no
-USB-C, clique em Connect, endereço `0x0`, escolha `DIVDeckPro_firmware_0.2.0_completo.bin` e Program.
+USB-C, clique em Connect, endereço `0x0`, escolha `DIVDeckPro_firmware_0.3.0_completo.bin` e Program.
 Se a porta não aparecer: segure BOOT, toque em RST e solte BOOT.
 
 **Com PlatformIO:** abra esta pasta e clique em Upload.

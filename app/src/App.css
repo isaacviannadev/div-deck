@@ -344,3 +344,19 @@ button.device:hover { background: var(--fill); }
 .seq .chip { width: auto; height: auto; min-height: 26px; padding: 4px 10px; font-size: 12px; white-space: nowrap; line-height: 1.2; }
 .seq select.chip { padding: 4px 6px; border: 0; color: var(--text-2); }
 .seq-add, .seq-templates { gap: 6px; }
+
+/* ---- tile icons (Pro) */
+.custom-icon { display: block; }
+.group-title small { font-weight: 400; color: var(--text-3); text-transform: none; letter-spacing: 0; }
+.iconpick { display: flex; flex-direction: column; gap: 8px; }
+.seg { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; padding: 2px; border-radius: 8px; background: var(--fill); }
+.seg button { padding: 5px 2px; border-radius: 6px; font-size: 11px; color: var(--text-2); }
+.seg button.on { background: var(--control); color: var(--text); box-shadow: 0 .5px 2px rgba(0,0,0,.2); }
+.icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 4px; max-height: 220px; overflow-y: auto; }
+.icon-grid button { aspect-ratio: 1; border-radius: 9px; display: grid; place-items: center; }
+.icon-grid button:hover { background: var(--fill-2); }
+.icon-grid button.on { background: color-mix(in srgb, var(--accent) 22%, transparent); box-shadow: inset 0 0 0 2px var(--accent); }
+.icon-grid.emoji button { font-size: 22px; }
+.emoji-own { display: flex; gap: 6px; }
+.emoji-own .input { flex: 1; }
+.btn.file { cursor: pointer; justify-content: center; }

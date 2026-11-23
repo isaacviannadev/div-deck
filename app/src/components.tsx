@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { COLS, isWindows, type Action, type AppInfo, type DeckModel, type KeyConfig, type Profile } from "./api";
+import { COLS, isWindows, type Action, type AppInfo, type DeckModel, type KeyConfig, type KeyIcon, type Profile } from "./api";
+import { EMOJI, brands, drawKeyIcon, imageFileToIcon } from "./tileIcons";
 import {
   ACTION_TYPES, AppIcon, Icon, MEDIA, MODS, STEP_TYPES, actionIcon, actionSummary, defaultAction, formatShortcut, keyFromEvent, useApps,
 } from "./ui";
@@ -85,8 +86,24 @@ function ShortcutField({ mods, keyName, onChange, compact = false }: { mods: str
 
 // ------------------------------------------------------------------ deck
 
-function KeyGlyph({ action: a, size }: { action: Action; size: number }) {
-  if (a.type === "openApp" && a.path) return <AppIcon path={a.path} size={size} />;
+/** A user-chosen picture (brand, emoji, own image), drawn exactly like it will be on the Pro. */
+function CustomIcon({ k, size }: { k: KeyConfig; size: number }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const apps = useApps();
+  const sig = JSON.stringify(k.icon);
+  useEffect(() => {
+    const c = ref.current; if (!c) return;
+    const dpr = window.devicePixelRatio || 1;
+    c.width = c.height = Math.round(size * dpr);
+    drawKeyIcon(c.getContext("2d")!, k, c.width, apps);
+  }, [sig, size, apps]); // eslint-disable-line react-hooks/exhaustive-deps
+  return <canvas ref={ref} className="custom-icon" style={{ width: size, height: size }} />;
+}
+
+function KeyGlyph({ k, size }: { k: KeyConfig; size: number }) {
+  const a = k.action;
+  if (k.icon && (k.icon.kind === "brand" || k.icon.kind === "emoji" || k.icon.kind === "image")) return <CustomIcon k={k} size={size} />;
+  if (a.type === "openApp" && a.path && k.icon?.kind !== "none") return <AppIcon path={a.path} size={size} />;
   if (a.type === "shortcut" && a.key) {
     const t = formatShortcut(a.mods, a.key);
     return <span className="kbd" style={{ fontSize: t.length > 4 ? 13 : 17 }}>{t}</span>;
@@ -110,7 +127,7 @@ export function Deck({ model = "mx", profile, profiles, selected, pressed, press
               onClick={() => onSelect(i)} title={actionSummary(k.action, profiles)}>
               <span className="led" />
               <span className="key-glyph">
-                <KeyGlyph action={k.action} size={30} />
+                <KeyGlyph k={k} size={30} />
               </span>
               <span className="key-label">{k.label || (empty ? "" : actionSummary(k.action, profiles))}</span>
             </button>
@@ -179,7 +196,7 @@ export function KeyEditor({ model = "mx", index, value, profiles, pressColor, on
       <div className="preview compact">
         <div className={`key big ${model === "pro" ? "pro" : ""} ${empty ? "empty" : ""}`} style={{ ["--led" as string]: `#${value.color}` }}>
           <span className="led" />
-          <span className="key-glyph"><KeyGlyph action={a} size={28} /></span>
+          <span className="key-glyph"><KeyGlyph k={value} size={28} /></span>
           <span className="key-label">{value.label || (empty ? "" : actionSummary(a, profiles))}</span>
         </div>
         <div className="preview-meta">Tecla {index + 1} · linha {row}, coluna {col}</div>
@@ -238,6 +255,10 @@ export function KeyEditor({ model = "mx", index, value, profiles, pressColor, on
                 <input className="row-input" value={value.label} placeholder={empty ? "Sem nome" : actionSummary(a, profiles)} maxLength={14}
                   onChange={(e) => onChange({ ...value, label: e.target.value })} />
               </label>
+            </div>
+            <div className="group-title">Ícone <small>· aparece na tela do DIV Deck Pro</small></div>
+            <div className="group pad">
+              <IconPicker value={value} onChange={(icon) => onChange({ ...value, icon })} />
             </div>
             <div className="group-title">{model === "pro" ? "Cor" : "Luz"}</div>
             <div className="group pad">
@@ -457,6 +478,96 @@ function SequenceEditor({ steps, profiles, onChange }: { steps: Action[]; profil
         </select>
       </div>
       <p className="hint">Os passos correm por ordem, com uma pequena pausa entre eles. Use “Esperar” quando um app demora a abrir.</p>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ icon picker (Pro tiles)
+
+const ICON_TABS: { kind: KeyIcon["kind"]; label: string }[] = [
+  { kind: "auto", label: "Automático" },
+  { kind: "brand", label: "Marcas" },
+  { kind: "emoji", label: "Emoji" },
+  { kind: "image", label: "Imagem" },
+  { kind: "none", label: "Nenhum" },
+];
+const BRAND_SUGGESTIONS = ["visualstudiocode", "figma", "discord", "steam", "spotify", "github", "notion", "claude", "openai",
+  "googlechrome", "safari", "firefoxbrowser", "youtube", "twitch", "obsstudio", "zoom", "whatsapp", "telegram", "gmail",
+  "googlemeet", "trello", "jira", "linear", "cursor", "docker", "postman", "apple", "netflix", "dota2", "googledrive"];
+
+function BrandSwatch({ b, size = 34 }: { b: { slug: string; hex: string; path: string; title: string }; size?: number }) {
+  const lum = parseInt(b.hex.slice(0, 2), 16) * 0.299 + parseInt(b.hex.slice(2, 4), 16) * 0.587 + parseInt(b.hex.slice(4, 6), 16) * 0.114;
+  return (
+    <svg width={size} height={size} viewBox="-6 -6 36 36" aria-hidden>
+      <rect x="-5" y="-5" width="34" height="34" rx="8" fill={`#${b.hex}`} />
+      <path d={b.path} fill={lum > 186 ? "#000" : "#fff"} transform="translate(2.9 2.9) scale(.76)" />
+    </svg>
+  );
+}
+
+function IconPicker({ value, onChange }: { value: KeyConfig; onChange: (icon: KeyIcon) => void }) {
+  const cur = value.icon ?? { kind: "auto" as const };
+  const [tab, setTab] = useState<KeyIcon["kind"]>(cur.kind);
+  const [q, setQ] = useState("");
+  const [all, setAll] = useState<{ title: string; slug: string; hex: string; path: string }[] | null>(null);
+  const [emoji, setEmoji] = useState("");
+  useEffect(() => { if (tab === "brand" && !all) brands().then(setAll); }, [tab, all]);
+  const list = !all ? [] : q.trim()
+    ? all.filter((b) => b.title.toLowerCase().includes(q.toLowerCase()) || b.slug.includes(q.toLowerCase().replace(/\s+/g, ""))).slice(0, 40)
+    : BRAND_SUGGESTIONS.map((s) => all.find((b) => b.slug === s)).filter(Boolean) as typeof all;
+  const autoText = value.action.type === "openApp" ? "Usa o ícone do próprio app." : "Usa o símbolo da ação (atalho, mídia, iniciais…).";
+  return (
+    <div className="iconpick">
+      <div className="seg">
+        {ICON_TABS.map((t) => (
+          <button key={t.kind} className={tab === t.kind ? "on" : ""}
+            onClick={() => { setTab(t.kind); if (t.kind === "auto" || t.kind === "none") onChange({ kind: t.kind }); }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {tab === "auto" && <p className="hint">{autoText}</p>}
+      {tab === "none" && <p className="hint">Só o nome e a cor, sem imagem.</p>}
+      {tab === "brand" && (
+        <>
+          <input className="input" placeholder="Procurar marca: GitHub, Notion, Spotify…" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
+          {!all ? <p className="hint">A carregar marcas…</p> : (
+            <div className="icon-grid">
+              {list.map((b) => (
+                <button key={b.slug} title={b.title} className={cur.kind === "brand" && cur.slug === b.slug ? "on" : ""}
+                  onClick={() => onChange({ kind: "brand", slug: b.slug, title: b.title, hex: b.hex })}>
+                  <BrandSwatch b={b} />
+                </button>
+              ))}
+              {list.length === 0 && <p className="hint">Nenhuma marca com esse nome.</p>}
+            </div>
+          )}
+          <p className="hint">Logótipos da Simple Icons, com a cor oficial de cada marca.</p>
+        </>
+      )}
+      {tab === "emoji" && (
+        <>
+          <div className="icon-grid emoji">
+            {EMOJI.map((e) => (
+              <button key={e} className={cur.kind === "emoji" && cur.char === e ? "on" : ""} onClick={() => onChange({ kind: "emoji", char: e })}>{e}</button>
+            ))}
+          </div>
+          <div className="emoji-own">
+            <input className="input" placeholder="Ou cole outro emoji" value={emoji} maxLength={8} onChange={(e) => setEmoji(e.target.value)} />
+            <button className="btn" disabled={!emoji.trim()} onClick={() => onChange({ kind: "emoji", char: emoji.trim() })}>Usar</button>
+          </div>
+        </>
+      )}
+      {tab === "image" && (
+        <>
+          <label className="btn wide file">
+            <input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" hidden
+              onChange={async (e) => { const f = e.target.files?.[0]; if (f) onChange({ kind: "image", data: await imageFileToIcon(f) }); }} />
+            {cur.kind === "image" ? "Trocar imagem…" : "Escolher imagem…"}
+          </label>
+          <p className="hint">PNG, JPG, SVG ou WebP. É recortada ao centro, em quadrado.</p>
+        </>
+      )}
     </div>
   );
 }

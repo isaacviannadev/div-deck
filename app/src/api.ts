@@ -19,10 +19,19 @@ export type Action =
 
 export type ActionType = Action["type"];
 
+/** Picture on a DIV Deck Pro tile. Absent = "auto" (the app's own icon for "open app", else the action's symbol). */
+export type KeyIcon =
+  | { kind: "auto" }
+  | { kind: "none" }
+  | { kind: "brand"; slug: string; title: string; hex: string }
+  | { kind: "emoji"; char: string }
+  | { kind: "image"; data: string }; // PNG data URL, 128 x 128
+
 export interface KeyConfig {
   label: string;
   color: string; // rrggbb
   action: Action;
+  icon?: KeyIcon;
 }
 
 export interface Profile {
@@ -106,6 +115,9 @@ export const api = {
   getState: () => call<AppStateDto>("get_state"),
   saveConfig: (config: Config) => call<void>("save_config", { config }),
   updateDeck: (deck: DeckSettings) => call<void>("update_deck", { deck }),
+  iconsMissing: (hashes: string[]) => call<string[]>("icons_missing", { hashes }),
+  putIcon: (hash: string, data: string) => call<void>("put_icon", { hash, data }),
+  setIconMap: (map: Record<string, (string | null)[]>) => call<void>("set_icon_map", { map }),
   forgetDeck: (id: string) => call<void>("forget_deck", { id }),
   setProfile: (deck: string | null, id: string) => call<void>("set_profile", { deck, id }),
   testAction: (action: Action) => call<void>("test_action", { action }),
@@ -208,6 +220,11 @@ const mock = (() => {
           pushDecks();
           return;
         }
+        case "icons_missing":
+          return [];
+        case "put_icon":
+        case "set_icon_map":
+          return;
         case "forget_deck":
           decks = decks.filter((d) => d.id !== args!.id || d.connected);
           pushDecks();

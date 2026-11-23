@@ -19,6 +19,9 @@
 //     G <k> <kind> [text]                 big glyph: txt <text> | play | next | prev | volup | voldown | mute | none
 //     N <text>                            profile name (shown when the app is gone)
 //     O <1|3>                             rotation: 1 = normal, 3 = upside down
+//     IH <k> <hash|->                     tile icon (56x56 BGRA, stored in flash by hash). Unknown hash -> device answers "NEED <hash>"
+//     IB <hash> <base64>                  a chunk of that icon (appended)
+//     IE <hash>                           icon complete: stored and drawn on every tile waiting for it
 //     R                                   redraw everything that changed
 //     S                                   save tiles, backlight and rotation to flash
 //
@@ -29,6 +32,8 @@
 #include <Arduino.h>
 #include <LovyanGFX.hpp>
 #include <Preferences.h>
+#include <LittleFS.h>
+#include "mbedtls/base64.h"
 
 #ifndef DIVDECK_VERSION
 #define DIVDECK_VERSION "dev"
@@ -86,7 +91,12 @@ struct Tile {
   char label[24];
   char kind[8];      // txt play next prev volup voldown mute none
   char text[16];
+  char icon[12];     // icon hash ("" = none): file /i/<hash>
 };
+static const int ICON = 56;
+static const size_t ICON_BYTES = ICON * ICON * 4;
+static uint8_t *iconBuf[KEYS];   // loaded icon per tile (PSRAM), null = draw the glyph
+static bool fsOk = false;
 static Tile tiles[KEYS];
 static bool tileDirty[KEYS];
 static char profileName[32] = "";
@@ -103,8 +113,8 @@ static void loadSettings() {
   rotation = prefs.getUChar("rot", 1);
   pressColor = prefs.getUInt("press", 0xFFFFFF);
   prefs.getString("name", profileName, sizeof profileName);
-  bool have = prefs.getBytesLength("tiles") == sizeof tiles;
-  if (have) prefs.getBytes("tiles", tiles, sizeof tiles);
+  bool have = prefs.getBytesLength("tiles2") == sizeof tiles;
+  if (have) prefs.getBytes("tiles2", tiles, sizeof tiles);
   prefs.end();
   if (!have) {
     static const char *demo[KEYS] = {"VS Code", "Figma", "Claude", "Discord", "Steam", "Print", "Mudo", "Notas",
@@ -116,6 +126,7 @@ static void loadSettings() {
       strlcpy(tiles[k].kind, "txt", sizeof tiles[k].kind);
       strlcpy(tiles[k].text, String(demo[k]).substring(0, 2).c_str(), sizeof tiles[k].text);
     }
+    for (uint8_t k = 0; k < KEYS; k++) tiles[k].icon[0] = '\0';
     const char *media[] = {"play", "prev", "next", "voldown", "volup"};
     for (uint8_t i = 0; i < 5; i++) strlcpy(tiles[10 + i].kind, media[i], sizeof tiles[0].kind);
   }
@@ -127,8 +138,40 @@ static void saveSettings() {
   prefs.putUChar("rot", rotation);
   prefs.putUInt("press", pressColor);
   prefs.putString("name", profileName);
-  prefs.putBytes("tiles", tiles, sizeof tiles);
+  prefs.putBytes("tiles2", tiles, sizeof tiles);
   prefs.end();
+}
+
+// ---------------------------------------------------------------- icons (flash cache by hash)
+static String iconPath(const char *hash) { return String("/i/") + hash; }
+
+static bool loadIcon(uint8_t k) {
+  if (!tiles[k].icon[0] || !fsOk) { if (iconBuf[k]) { free(iconBuf[k]); iconBuf[k] = nullptr; } return false; }
+  File f = LittleFS.open(iconPath(tiles[k].icon), "r");
+  if (!f || f.size() != ICON_BYTES) { if (f) f.close(); return false; }
+  if (!iconBuf[k]) iconBuf[k] = (uint8_t *)ps_malloc(ICON_BYTES);
+  if (!iconBuf[k]) iconBuf[k] = (uint8_t *)malloc(ICON_BYTES);
+  bool ok = iconBuf[k] && f.read(iconBuf[k], ICON_BYTES) == ICON_BYTES;
+  f.close();
+  if (!ok && iconBuf[k]) { free(iconBuf[k]); iconBuf[k] = nullptr; }
+  return ok;
+}
+
+static void dropOldIcons() {   // keep the flash from filling up: oldest files go first
+  if (!fsOk) return;
+  while (LittleFS.totalBytes() - LittleFS.usedBytes() < ICON_BYTES * 3) {
+    File dir = LittleFS.open("/i");
+    String oldest; time_t t0 = 0;
+    for (File f = dir.openNextFile(); f; f = dir.openNextFile()) {
+      String n = String("/i/") + f.name();
+      bool inUse = false;
+      for (uint8_t k = 0; k < KEYS; k++) if (n == iconPath(tiles[k].icon)) inUse = true;
+      if (!inUse && (oldest.isEmpty() || f.getLastWrite() < t0)) { oldest = n; t0 = f.getLastWrite(); }
+      f.close();
+    }
+    dir.close();
+    if (oldest.isEmpty() || !LittleFS.remove(oldest)) break;
+  }
 }
 
 // ---------------------------------------------------------------- drawing
@@ -195,7 +238,9 @@ static void drawTile(uint8_t k, bool pressed) {
   if (empty) return;
   // soft highlight on the top half, like the app
   if (!pressed) tft.fillRoundRect(x + 2, y + 2, w - 4, h / 2 - 2, 12, rgb(base, 0.86f));
-  drawGlyph(t, x + w / 2, y + h / 2 - (t.label[0] ? 9 : 0), w, fg);
+  int gy = y + h / 2 - (t.label[0] ? 9 : 0);
+  if (iconBuf[k]) tft.pushAlphaImage(x + (w - ICON) / 2, gy - ICON / 2, ICON, ICON, (lgfx::argb8888_t *)iconBuf[k]);
+  else drawGlyph(t, x + w / 2, gy, w, fg);
   if (t.label[0]) {
     tft.setFont(&fonts::FreeSans9pt7b);
     tft.setTextColor(fg);
@@ -330,6 +375,41 @@ static void handleLine(char *line) {
       tileDirty[k] = true;
     }
     Serial.println("OK");
+  } else if (!strcmp(cmd, "IH")) {
+    int k = keyArg(rest);
+    if (k < 0) { Serial.println("ERR key"); return; }
+    const char *h = (rest && rest[0] && strcmp(rest, "-")) ? rest : "";
+    if (strcmp(tiles[k].icon, h)) {
+      strlcpy(tiles[k].icon, h, sizeof tiles[k].icon);
+      tileDirty[k] = true;
+      if (!h[0] || !loadIcon(k)) { if (iconBuf[k]) { free(iconBuf[k]); iconBuf[k] = nullptr; } }
+      if (h[0] && !iconBuf[k]) { Serial.printf("NEED %s\n", h); return; }
+    } else if (h[0] && !iconBuf[k] && !loadIcon(k)) {
+      Serial.printf("NEED %s\n", h); return;
+    }
+    Serial.println("OK");
+  } else if (!strcmp(cmd, "IB") && rest) {
+    char *sp = strchr(rest, ' ');
+    if (!sp || !fsOk) { Serial.println("ERR icon"); return; }
+    *sp = '\0';
+    static uint8_t bin[400];
+    size_t n = 0;
+    if (mbedtls_base64_decode(bin, sizeof bin, &n, (const unsigned char *)sp + 1, strlen(sp + 1)) != 0) { Serial.println("ERR b64"); return; }
+    File f = LittleFS.open(iconPath(rest) + ".part", "a");
+    if (!f) { Serial.println("ERR fs"); return; }
+    f.write(bin, n); f.close();
+    Serial.println("OK");
+  } else if (!strcmp(cmd, "IE") && rest) {
+    String part = iconPath(rest) + ".part", fin = iconPath(rest);
+    File f = LittleFS.open(part, "r");
+    size_t sz = f ? f.size() : 0; if (f) f.close();
+    if (sz != ICON_BYTES) { LittleFS.remove(part); Serial.println("ERR size"); return; }
+    LittleFS.remove(fin);
+    LittleFS.rename(part, fin);
+    for (uint8_t k = 0; k < KEYS; k++) if (!strcmp(tiles[k].icon, rest)) { loadIcon(k); tileDirty[k] = true; }
+    drawDirty();
+    dropOldIcons();
+    Serial.println("OK");
   } else if (!strcmp(cmd, "N")) {
     strlcpy(profileName, rest ? rest : "", sizeof profileName); Serial.println("OK");
   } else if (!strcmp(cmd, "O") && rest) {
@@ -346,8 +426,8 @@ static void handleLine(char *line) {
 }
 
 static void pollSerial() {
-  static char buf[160];
-  static uint8_t len = 0;
+  static char buf[640];
+  static uint16_t len = 0;
   while (Serial.available()) {
     char ch = Serial.read();
     if (ch == '\r') continue;
@@ -361,6 +441,9 @@ void setup() {
   Serial.begin(115200);
   neopixelWrite(PIN_RGB, 0, 0, 12);
   loadSettings();
+  fsOk = LittleFS.begin(true);
+  if (fsOk) LittleFS.mkdir("/i");
+  for (uint8_t k = 0; k < KEYS; k++) loadIcon(k);
   tft.init();
   tft.setRotation(rotation);
   applyBrightness();

@@ -31,6 +31,10 @@ struct AppState {
     icon_cache: PathBuf,
     decks: Arc<Decks>,
     actions: Mutex<mpsc::Sender<actions::Job>>,
+    /// Pro tile icons: profile id -> 15 icon hashes (rendered by the UI, cached as files).
+    icon_map: Mutex<HashMap<String, Vec<Option<String>>>>,
+    /// Folder with rendered icons (56x56 BGRA, named by hash) + index.json.
+    tile_icons: PathBuf,
 }
 
 /// A known deck as the UI sees it: its saved settings plus the live link, if any.
@@ -272,6 +276,9 @@ pub(crate) fn push_deck(app: &AppHandle, id: &str) {
                 let label = if key.label.is_empty() && key.action != Action::None { String::new() } else { ascii(&key.label) };
                 st.decks.send(id, format!("T {k} {}", label.trim()));
                 st.decks.send(id, format!("G {k} {}", pro_glyph(&key.action, &cfg)));
+                let hash = st.icon_map.lock().unwrap().get(&p.id).and_then(|v| v.get(k).cloned().flatten());
+                let hash = hash.filter(|h| st.tile_icons.join(h).exists());
+                st.decks.send(id, format!("IH {k} {}", hash.as_deref().unwrap_or("-")));
             }
         }
         if pro {
@@ -279,6 +286,20 @@ pub(crate) fn push_deck(app: &AppHandle, id: &str) {
             st.decks.send(id, "R");
         }
     }
+}
+
+/// The Pro asked for an icon it doesn't have yet: stream it in base64 chunks.
+pub(crate) fn on_icon_needed(app: &AppHandle, deck: &str, hash: &str) {
+    use base64::Engine;
+    let st = app.state::<AppState>();
+    if !hash.chars().all(|c| c.is_ascii_alphanumeric()) {
+        return;
+    }
+    let Ok(bytes) = std::fs::read(st.tile_icons.join(hash)) else { return };
+    for chunk in bytes.chunks(384) {
+        st.decks.send(deck, format!("IB {hash} {}", base64::engine::general_purpose::STANDARD.encode(chunk)));
+    }
+    st.decks.send(deck, format!("IE {hash}"));
 }
 
 fn push_all(app: &AppHandle) {
@@ -475,6 +496,44 @@ fn save_to_device(st: tauri::State<AppState>, deck: String) {
     st.decks.send(&deck, "S");
 }
 
+/// Which of these icon hashes aren't rendered and cached yet.
+#[tauri::command]
+fn icons_missing(st: tauri::State<AppState>, hashes: Vec<String>) -> Vec<String> {
+    hashes.into_iter().filter(|h| h.chars().all(|c| c.is_ascii_alphanumeric()) && !st.tile_icons.join(h).exists()).collect()
+}
+
+/// Store one rendered icon (56 x 56 BGRA, base64).
+#[tauri::command]
+fn put_icon(st: tauri::State<AppState>, hash: String, data: String) -> Result<(), String> {
+    use base64::Engine;
+    if !hash.chars().all(|c| c.is_ascii_alphanumeric()) || hash.len() > 11 {
+        return Err("hash inválido".into());
+    }
+    let bytes = base64::engine::general_purpose::STANDARD.decode(data).map_err(|e| e.to_string())?;
+    if bytes.len() != 56 * 56 * 4 {
+        return Err("tamanho inválido".into());
+    }
+    std::fs::create_dir_all(&st.tile_icons).map_err(|e| e.to_string())?;
+    std::fs::write(st.tile_icons.join(&hash), bytes).map_err(|e| e.to_string())
+}
+
+/// Which icon each key of each profile shows on a Pro. Pushes the change to the connected decks.
+#[tauri::command]
+fn set_icon_map(app: AppHandle, st: tauri::State<AppState>, map: HashMap<String, Vec<Option<String>>>) {
+    let changed = {
+        let mut cur = st.icon_map.lock().unwrap();
+        let changed = *cur != map;
+        *cur = map;
+        changed
+    };
+    if changed {
+        if let Ok(json) = serde_json::to_string(&*st.icon_map.lock().unwrap()) {
+            let _ = std::fs::write(st.tile_icons.join("index.json"), json);
+        }
+        push_all(&app);
+    }
+}
+
 #[tauri::command]
 async fn list_apps() -> Vec<apps::AppInfo> {
     apps::list()
@@ -518,6 +577,12 @@ pub fn run() {
         .setup(|app| {
             let config_path = app.path().app_config_dir()?.join("config.json");
             let icon_cache = app.path().app_cache_dir()?.join("icons");
+            let tile_icons = config_path.parent().map(|p| p.join("tile-icons")).unwrap_or_else(|| PathBuf::from("tile-icons"));
+            let _ = std::fs::create_dir_all(&tile_icons);
+            let icon_map: HashMap<String, Vec<Option<String>>> = std::fs::read_to_string(tile_icons.join("index.json"))
+                .ok()
+                .and_then(|s| serde_json::from_str(&s).ok())
+                .unwrap_or_default();
             let config = Config::load(&config_path);
             let decks = Arc::new(Decks::default());
             app.manage(AppState {
@@ -528,6 +593,8 @@ pub fn run() {
                 icon_cache,
                 decks: decks.clone(),
                 actions: Mutex::new(actions::spawn_worker()),
+                icon_map: Mutex::new(icon_map),
+                tile_icons,
             });
 
             let show = MenuItem::with_id(app, "show", "Abrir DIV Deck", true, None::<&str>)?;
@@ -559,6 +626,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_state,
             save_config,
+            icons_missing,
+            put_icon,
+            set_icon_map,
             update_deck,
             forget_deck,
             set_profile,
