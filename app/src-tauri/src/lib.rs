@@ -559,6 +559,148 @@ fn open_accessibility_settings() {
 
 // ------------------------------------------------------------------ app
 
+// ------------------------------------------------------------------ app menu (macOS menu bar)
+
+const SITE_URL: &str = "https://isaacviannadev.github.io/div-deck/";
+const ISSUES_URL: &str = "https://github.com/isaacviannadev/div-deck/issues/new";
+const MANUAL_URL: &str = "https://claude.ai/artifact/D82b8R3qZEZSwgJaUffmws";
+
+#[cfg(target_os = "macos")]
+fn build_app_menu(app: &tauri::App) -> tauri::Result<Menu<tauri::Wry>> {
+    use tauri::menu::{AboutMetadata, PredefinedMenuItem, Submenu};
+    let h = app.handle();
+    let item = |id: &str, text: &str, acc: Option<&str>| MenuItem::with_id(h, id, text, true, acc);
+    let sep = || PredefinedMenuItem::separator(h);
+    let about = AboutMetadata {
+        name: Some("DIV Deck".into()),
+        version: Some(app.package_info().version.to_string()),
+        copyright: Some("DIV Tecnologia".into()),
+        website: Some(SITE_URL.into()),
+        ..Default::default()
+    };
+    let app_menu = Submenu::with_items(h, "DIV Deck", true, &[
+        &PredefinedMenuItem::about(h, Some("Sobre o DIV Deck"), Some(about))?,
+        &item("check_update", "Verificar atualizações…", None)?,
+        &sep()?,
+        &PredefinedMenuItem::services(h, None)?,
+        &sep()?,
+        &PredefinedMenuItem::hide(h, Some("Ocultar DIV Deck"))?,
+        &PredefinedMenuItem::hide_others(h, Some("Ocultar outros"))?,
+        &PredefinedMenuItem::show_all(h, Some("Mostrar tudo"))?,
+        &sep()?,
+        &item("quit", "Sair do DIV Deck", Some("CmdOrCtrl+Q"))?,
+    ])?;
+    let file = Submenu::with_items(h, "Arquivo", true, &[
+        &item("new_profile", "Novo perfil", Some("CmdOrCtrl+N"))?,
+        &item("duplicate_profile", "Duplicar perfil", Some("CmdOrCtrl+D"))?,
+        &item("delete_profile", "Apagar perfil…", None)?,
+        &sep()?,
+        &item("save", "Salvar", Some("CmdOrCtrl+S"))?,
+        &item("discard", "Descartar alterações…", None)?,
+        &sep()?,
+        &item("import", "Importar perfis…", Some("CmdOrCtrl+O"))?,
+        &item("export", "Exportar perfis…", Some("CmdOrCtrl+Shift+E"))?,
+        &sep()?,
+        &item("open_config", "Mostrar pasta de configuração", None)?,
+        &sep()?,
+        &PredefinedMenuItem::close_window(h, Some("Fechar janela"))?,
+    ])?;
+    let edit = Submenu::with_items(h, "Editar", true, &[
+        &PredefinedMenuItem::undo(h, Some("Desfazer"))?,
+        &PredefinedMenuItem::redo(h, Some("Refazer"))?,
+        &sep()?,
+        &PredefinedMenuItem::cut(h, Some("Cortar"))?,
+        &PredefinedMenuItem::copy(h, Some("Copiar"))?,
+        &PredefinedMenuItem::paste(h, Some("Colar"))?,
+        &PredefinedMenuItem::select_all(h, Some("Selecionar tudo"))?,
+    ])?;
+    let deck = Submenu::with_items(h, "Deck", true, &[
+        &item("save_device", "Gravar teclas no deck", Some("CmdOrCtrl+Shift+S"))?,
+        &item("test_key", "Testar tecla selecionada", Some("CmdOrCtrl+T"))?,
+        &item("clear_key", "Limpar tecla selecionada…", None)?,
+    ])?;
+    let window = Submenu::with_items(h, "Janela", true, &[
+        &PredefinedMenuItem::minimize(h, Some("Minimizar"))?,
+        &PredefinedMenuItem::maximize(h, Some("Zoom"))?,
+    ])?;
+    let help = Submenu::with_items(h, "Ajuda", true, &[
+        &item("help_manual", "Manual do DIV Deck Pro", None)?,
+        &item("help_site", "Site do DIV Deck", None)?,
+        &sep()?,
+        &item("help_issue", "Reportar um problema…", None)?,
+    ])?;
+    Menu::with_items(h, &[&app_menu, &file, &edit, &deck, &window, &help])
+}
+
+/// Menu clicks: some are done here, the rest go to the window (which owns unsaved edits).
+fn on_app_menu(app: &AppHandle, id: &str) {
+    use tauri_plugin_opener::OpenerExt;
+    match id {
+        "quit" => app.exit(0),
+        "help_manual" => { let _ = app.opener().open_url(MANUAL_URL, None::<&str>); }
+        "help_site" => { let _ = app.opener().open_url(SITE_URL, None::<&str>); }
+        "help_issue" => { let _ = app.opener().open_url(ISSUES_URL, None::<&str>); }
+        "open_config" => {
+            let st = app.state::<AppState>();
+            if let Some(dir) = st.config_path.parent() {
+                let _ = app.opener().open_path(dir.to_string_lossy(), None::<&str>);
+            }
+        }
+        "export" => export_profiles(app),
+        "import" => import_profiles(app),
+        "show" => show_main(app),
+        _ => {
+            show_main(app);
+            let _ = app.emit("menu://action", id.to_string());
+        }
+    }
+}
+
+/// File format for exported profiles.
+#[derive(Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProfilesFile {
+    format: String,
+    version: u32,
+    app_version: String,
+    profiles: Vec<config::Profile>,
+}
+
+fn export_profiles(app: &AppHandle) {
+    use tauri_plugin_dialog::DialogExt;
+    let app = app.clone();
+    let profiles = app.state::<AppState>().config.lock().unwrap().profiles.clone();
+    let file = ProfilesFile { format: "divdeck-profiles".into(), version: 1, app_version: app.package_info().version.to_string(), profiles };
+    app.dialog().file().set_title("Exportar perfis").set_file_name("DIV Deck - perfis.divdeck.json")
+        .add_filter("Perfis do DIV Deck", &["json"])
+        .save_file(move |path| {
+            let Some(path) = path.and_then(|p| p.into_path().ok()) else { return };
+            let res = serde_json::to_string_pretty(&file).map_err(|e| e.to_string()).and_then(|s| std::fs::write(&path, s).map_err(|e| e.to_string()));
+            let n = file.profiles.len();
+            let _ = app.emit("menu://exported", match res {
+                Ok(()) => serde_json::json!({ "ok": true, "count": n, "name": path.file_name().map(|f| f.to_string_lossy().to_string()) }),
+                Err(e) => serde_json::json!({ "ok": false, "error": e }),
+            });
+        });
+}
+
+fn import_profiles(app: &AppHandle) {
+    use tauri_plugin_dialog::DialogExt;
+    let app = app.clone();
+    app.dialog().file().set_title("Importar perfis").add_filter("Perfis do DIV Deck", &["json"]).pick_file(move |path| {
+        let Some(path) = path.and_then(|p| p.into_path().ok()) else { return };
+        let parsed = std::fs::read_to_string(&path).map_err(|e| e.to_string()).and_then(|s| {
+            serde_json::from_str::<ProfilesFile>(&s).map_err(|_| "o ficheiro não é um export de perfis do DIV Deck".to_string())
+        });
+        show_main(&app);
+        let _ = app.emit("menu://import", match parsed {
+            Ok(f) if f.format == "divdeck-profiles" => serde_json::json!({ "ok": true, "profiles": f.profiles }),
+            Ok(_) => serde_json::json!({ "ok": false, "error": "formato desconhecido" }),
+            Err(e) => serde_json::json!({ "ok": false, "error": e }),
+        });
+    });
+}
+
 fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
@@ -573,6 +715,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_dialog::init())
+        .on_menu_event(|app, e| on_app_menu(app, e.id.as_ref()))
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
         .setup(|app| {
             let config_path = app.path().app_config_dir()?.join("config.json");
@@ -597,16 +741,18 @@ pub fn run() {
                 tile_icons,
             });
 
+            #[cfg(target_os = "macos")]
+            {
+                let m = build_app_menu(app)?;
+                app.handle().set_menu(m)?;
+            }
+            // tray menu: same ids as the app menu, handled by on_app_menu
             let show = MenuItem::with_id(app, "show", "Abrir DIV Deck", true, None::<&str>)?;
+            let upd = MenuItem::with_id(app, "check_update", "Verificar atualizações…", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Sair", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show, &quit])?;
-            let mut tray = TrayIconBuilder::with_id("divdeck").menu(&menu).tooltip("DIV Deck").on_menu_event(
-                |app, e| match e.id.as_ref() {
-                    "show" => show_main(app),
-                    "quit" => app.exit(0),
-                    _ => {}
-                },
-            );
+            let sep = tauri::menu::PredefinedMenuItem::separator(app)?;
+            let menu = Menu::with_items(app, &[&show, &upd, &sep, &quit])?;
+            let mut tray = TrayIconBuilder::with_id("divdeck").menu(&menu).tooltip("DIV Deck");
             if let Ok(icon) = tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png")) {
                 tray = tray.icon(icon).icon_as_template(true);
             }

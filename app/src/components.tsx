@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { COLS, isWindows, type Action, type AppInfo, type DeckModel, type KeyConfig, type KeyIcon, type Profile } from "./api";
 import { EMOJI, brands, drawKeyIcon, imageFileToIcon } from "./tileIcons";
+import { confirmDialog, toast } from "./feedback";
 import {
   ACTION_TYPES, AppIcon, Icon, MEDIA, MODS, STEP_TYPES, actionIcon, actionSummary, defaultAction, formatShortcut, keyFromEvent, useApps,
 } from "./ui";
@@ -300,7 +301,13 @@ export function KeyEditor({ model = "mx", index, value, profiles, pressColor, on
             </div>
             <div className="summary-actions">
               <button className="btn" onClick={onTest} disabled={empty || !ready}><Icon name="bolt" size={14} /> Testar agora</button>
-              <button className="btn plain danger" onClick={() => { onChange({ label: "", color: "1c1f26", action: { type: "none" } }); setStep("type"); }}>Limpar tecla</button>
+              <button className="btn plain danger" onClick={async () => {
+                const ok = await confirmDialog({ title: `Limpar a tecla ${index + 1}?`, message: "A ação, o nome, o ícone e a cor voltam ao vazio. Pode desfazer com ⌘Z.", confirm: "Limpar", destructive: true });
+                if (!ok) return;
+                onChange({ label: "", color: "1c1f26", action: { type: "none" } });
+                setStep("type");
+                toast.success("Tecla limpa", { description: "⌘Z para desfazer" });
+              }}>Limpar tecla</button>
             </div>
           </>
         )}

@@ -3,6 +3,7 @@ import { api, checkForUpdate, isTauri, isWindows, lockedApps, presetOwner, type 
 import { AppPicker, Deck, KeyEditor } from "./components";
 import { AppIcon, Icon, Toggle, appName, useApps } from "./ui";
 import { syncTileIcons } from "./tileIcons";
+import { ConfirmHost, Toaster, confirmDialog, dismiss, toast } from "./feedback";
 import "./App.css";
 import logoSvg from "./divdeck-logo.svg?raw";
 
@@ -41,7 +42,6 @@ function Main({ initial }: { initial: AppStateDto }) {
   const [pressed, setPressed] = useState<Set<number>>(new Set());
   const [linking, setLinking] = useState(false);
   const [autostart, setAutostart] = useState(false);
-  const [flash, setFlash] = useState<string | null>(null);
 
   // ---- backend events
   useEffect(() => {
@@ -82,15 +82,19 @@ function Main({ initial }: { initial: AppStateDto }) {
     const t = setInterval(run, 6 * 3600_000);
     return () => clearInterval(t);
   }, []);
+  const installRef = useRef<() => void>(() => {});
+  const [appVersion, setAppVersion] = useState("");
+  useEffect(() => { if (isTauri) import("@tauri-apps/api/app").then((m) => m.getVersion()).then(setAppVersion).catch(() => {}); }, []);
   const installUpdate = async () => {
     if (!update) return;
     if (dirtyRef.current) await keys.current.save();
     setUpdating(0);
     try { await update.install(setUpdating); }
-    catch { setUpdating(null); say("Não foi possível atualizar. Tente de novo mais tarde."); }
+    catch { setUpdating(null); toast.error("Não foi possível atualizar", { description: "Tente de novo mais tarde." }); }
   };
 
-  const say = (msg: string) => { setFlash(msg); setTimeout(() => setFlash(null), 2200); };
+  installRef.current = installUpdate;
+  const say = (msg: string) => toast.info(msg);
 
   // ---- profile edits: undo / redo history (profiles only; settings save right away)
   const cfgRef = useRef(config); cfgRef.current = config;
@@ -121,6 +125,7 @@ function Main({ initial }: { initial: AppStateDto }) {
     setHist({ past: hist.past.slice(0, -1), future: [config.profiles, ...hist.future] });
     restore(prev);
   };
+  const undoRef = useRef(undo); undoRef.current = undo;
   const redo = () => {
     if (!hist.future.length) return;
     const [next, ...rest] = hist.future;
@@ -137,9 +142,18 @@ function Main({ initial }: { initial: AppStateDto }) {
     setSaved(next);
     lastEdit.current = { tag: "", at: 0 };
     if (next.profiles.some((p) => p.id === active)) api.setProfile(deckRef.current?.id ?? null, active);
-    say("Alterações salvas");
+    toast.success("Alterações salvas");
   };
-  const discard = () => edit(() => saved.profiles);
+  const discard = async () => {
+    if (!dirtyRef.current) return;
+    const ok = await confirmDialog({
+      title: "Descartar alterações?", message: "Os perfis voltam ao que estava salvo. Pode recuperar com Desfazer (⌘Z).",
+      confirm: "Descartar", destructive: true,
+    });
+    if (!ok) return;
+    edit(() => savedRef.current.profiles);
+    toast.info("Alterações descartadas", { action: { label: "Desfazer", onClick: () => undoRef.current() } });
+  };
 
   // ---- settings (brightness, auto switch) are saved on their own, without pending profile edits
   useEffect(() => {
@@ -154,6 +168,57 @@ function Main({ initial }: { initial: AppStateDto }) {
 
   // ---- keyboard: ⌘S save, ⌘Z undo, ⇧⌘Z / Ctrl+Y redo
   const keys = useRef({ save, undo, redo }); keys.current = { save, undo, redo };
+
+  // ---- menu bar (Arquivo / Deck / Verificar atualizações…) and import / export
+  const menu = useRef<Record<string, () => void>>({});
+  menu.current = {
+    check_update: async () => {
+      const id = toast.info("A procurar atualizações…");
+      const u = await checkForUpdate();
+      dismiss(id);
+      if (u) { setUpdate(u); toast.success(`Versão ${u.version} disponível`, { action: { label: "Atualizar", onClick: () => installRef.current() } }); }
+      else toast.success("O DIV Deck está atualizado", { description: `Versão ${appVersion}` });
+    },
+    new_profile: () => addProfile(),
+    duplicate_profile: () => duplicateProfile(),
+    delete_profile: () => { deleteProfile(); },
+    save: () => { save(); },
+    discard: () => { if (dirtyRef.current) discard(); else toast.info("Não há alterações por salvar"); },
+    save_device: () => {
+      const d = deckRef.current;
+      if (!d?.connected) { toast.warning("Nenhum deck ligado"); return; }
+      api.saveToDevice(d.id); toast.success(`Gravado em ${d.name}`);
+    },
+    test_key: () => { api.testAction(profile.keys[selected].action); toast.info(`A testar a tecla ${selected + 1}`); },
+    clear_key: async () => {
+      const ok = await confirmDialog({ title: `Limpar a tecla ${selected + 1}?`, message: "A ação, o nome e a cor voltam ao vazio.", confirm: "Limpar", destructive: true });
+      if (ok) { updateKey({ label: "", color: "1c1f26", action: { type: "none" } }); toast.success("Tecla limpa", { action: { label: "Desfazer", onClick: () => undoRef.current() } }); }
+    },
+  };
+  useEffect(() => {
+    const un = [
+      api.onMenu((id) => menu.current[id]?.()),
+      api.onImport((r) => {
+        if (!r.ok || !r.profiles?.length) { toast.error("Não foi possível importar", { description: r.error ?? "Ficheiro vazio." }); return; }
+        const incoming = r.profiles;
+        edit((ps) => {
+          const ids = new Set(ps.map((p) => p.id));
+          const names = new Set(ps.map((p) => p.name));
+          return [...ps, ...incoming.map((p) => ({
+            ...p,
+            id: ids.has(p.id) ? uid() : p.id,
+            name: names.has(p.name) ? `${p.name} (importado)` : p.name,
+            apps: p.apps.filter((a) => !ps.some((q) => q.apps.includes(a))), // an app belongs to one profile only
+          }))];
+        });
+        toast.success(`${incoming.length} perfi${incoming.length > 1 ? "s importados" : "l importado"}`, { description: "Reveja e clique em Salvar para manter.", action: { label: "Salvar", onClick: () => keys.current.save() } });
+      }),
+      api.onExported((r) => r.ok
+        ? toast.success(`${r.count} perfis exportados`, { description: r.name ?? undefined })
+        : toast.error("Não foi possível exportar", { description: r.error })),
+    ];
+    return () => { un.forEach((p) => p.then((f) => f())); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
@@ -205,11 +270,19 @@ function Main({ initial }: { initial: AppStateDto }) {
     edit((ps) => [...ps, p]);
     selectProfile(p.id);
   };
-  const deleteProfile = () => {
+  const deleteProfile = async () => {
     if (config.profiles.length < 2) return;
-    const rest = config.profiles.filter((p) => p.id !== profile.id);
+    const victim = profile;
+    const ok = await confirmDialog({
+      title: `Apagar o perfil “${victim.name}”?`,
+      message: "As 15 teclas deste perfil deixam de existir quando salvar. Até lá pode desfazer.",
+      confirm: "Apagar perfil", destructive: true,
+    });
+    if (!ok) return;
+    const rest = cfgRef.current.profiles.filter((p) => p.id !== victim.id);
     edit(() => rest);
     selectProfile(rest[0].id);
+    toast.success(`Perfil “${victim.name}” apagado`, { description: "Salve para confirmar.", action: { label: "Desfazer", onClick: () => undoRef.current() } });
   };
   const linkApp = (bundleId: string | null) => {
     if (!bundleId) return;
@@ -272,7 +345,10 @@ function Main({ initial }: { initial: AppStateDto }) {
             <Toggle label="Segue o app em foco" checked={deck.followApp} onChange={(v) => changeDeck({ followApp: v })} />
             {deck.model === "pro" && <Toggle label="Tela invertida (180°)" checked={deck.flipped} onChange={(v) => changeDeck({ flipped: v })} />}
             {!deck.connected && decks.length > 1 && (
-              <button className="btn plain small danger" onClick={() => { api.forgetDeck(deck.id); setDeckId(null); }}>Remover da lista</button>
+              <button className="btn plain small danger" onClick={async () => {
+                const ok = await confirmDialog({ title: `Remover “${deck.name}” da lista?`, message: "Se voltar a ligá-lo, ele aparece outra vez como um deck novo.", confirm: "Remover", destructive: true });
+                if (ok) { api.forgetDeck(deck.id); setDeckId(null); toast.success(`${deck.name} removido`); }
+              }}>Remover da lista</button>
             )}
           </div>
         )}
@@ -317,7 +393,7 @@ function Main({ initial }: { initial: AppStateDto }) {
           </div>
           <Toggle label="Trocar pelo app em foco" checked={config.autoSwitch} onChange={(v) => setConfig((c) => ({ ...c, autoSwitch: v }))} />
           <Toggle label="Abrir ao iniciar sessão" checked={autostart} onChange={(v) => api.autostart(v).then(setAutostart)} />
-          <button className="btn wide" disabled={!deck?.connected} onClick={() => { if (deck) { api.saveToDevice(deck.id); say(`Gravado em ${deck.name}`); } }}>
+          <button className="btn wide" disabled={!deck?.connected} onClick={() => { if (deck) { api.saveToDevice(deck.id); toast.success(`Gravado em ${deck.name}`, { description: "As teclas aparecem mesmo sem o app aberto." }); } }}>
             {deck?.model === "pro" ? "Gravar teclas no deck" : "Gravar cores no deck"}
           </button>
         </div>
@@ -383,9 +459,10 @@ function Main({ initial }: { initial: AppStateDto }) {
             Clique numa tecla para editar — ou {deck?.model === "pro" ? "toque-a na tela" : "aperte-a no deck"}
           </p>
         </div>
-        {flash && <div className="toast">{flash}</div>}
+        <Toaster />
       </main>
 
+      <ConfirmHost />
       {/* ------------------------------------------------ inspector */}
       <aside className="panel">
         <div className="panel-top" data-tauri-drag-region />

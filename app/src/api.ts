@@ -132,6 +132,9 @@ export const api = {
   onDecks: (cb: (d: DeckInfo[]) => void) => on("deck://decks", cb),
   onKey: (cb: (e: { deck: string; key: number; down: boolean }) => void) => on("deck://key", cb),
   onFrontApp: (cb: (bundleId: string | null) => void) => on("deck://front-app", cb),
+  onMenu: (cb: (id: string) => void) => on("menu://action", cb),
+  onImport: (cb: (r: { ok: boolean; profiles?: Profile[]; error?: string }) => void) => on("menu://import", cb),
+  onExported: (cb: (r: { ok: boolean; count?: number; name?: string; error?: string }) => void) => on("menu://exported", cb),
 
   async autostart(enable?: boolean): Promise<boolean> {
     if (!isTauri) return mock.autostart(enable);
