@@ -29,13 +29,22 @@ pub enum Action {
     /// Keyboard shortcut. `mods` from: cmd, ctrl, alt, shift. `key` is a single
     /// character ("c", "4", "/") or a named key ("F5", "Left", "Return", "Space"...).
     Shortcut { mods: Vec<String>, key: String },
-    /// Type a piece of text.
-    TypeText { text: String },
+    /// Type a piece of text; `submit` presses Return afterwards (send a chat message, run a command).
+    TypeText {
+        text: String,
+        #[serde(default)]
+        submit: bool,
+    },
     Media { key: MediaKey },
     /// Run a shell command with /bin/zsh -lc (non-blocking).
     Shell { command: String },
     /// Switch the deck to another profile.
     SwitchProfile { profile: String },
+    /// Several actions one after the other (a macro): e.g. open Slack, wait, ⌘K, type a name,
+    /// Return, type a message, Return.
+    Sequence { steps: Vec<Action> },
+    /// Pause inside a sequence, in milliseconds (capped at 10 s).
+    Wait { ms: u32 },
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]

@@ -3,7 +3,7 @@
 
 use crate::config::{Action, MediaKey};
 use enigo::{Direction, Enigo, Key, Keyboard, Settings};
-use std::{process::Command, sync::mpsc, thread};
+use std::{process::Command, sync::mpsc, thread, time::Duration};
 
 pub enum Job {
     Run(Action),
@@ -34,13 +34,46 @@ fn enigo(slot: &mut Option<Enigo>) -> Result<&mut Enigo, String> {
     Ok(slot.as_mut().unwrap())
 }
 
+/// Gap between the steps of a sequence, so apps keep up with synthetic input.
+const STEP_GAP: Duration = Duration::from_millis(60);
+
 fn run(action: &Action, slot: &mut Option<Enigo>) -> Result<(), String> {
+    run_at(action, slot, 0)
+}
+
+fn run_at(action: &Action, slot: &mut Option<Enigo>, depth: u8) -> Result<(), String> {
     match action {
         Action::None | Action::SwitchProfile { .. } => Ok(()), // profile switch is handled by the caller
         Action::OpenApp { path, name } => open_app(path, name),
         Action::OpenUrl { url } => open_url(url),
         Action::Shell { command } => shell(command),
-        Action::TypeText { text } => enigo(slot)?.text(text).map_err(|e| e.to_string()),
+        Action::Wait { ms } => {
+            thread::sleep(Duration::from_millis((*ms).min(10_000) as u64));
+            Ok(())
+        }
+        Action::Sequence { steps } => {
+            if depth > 2 {
+                return Err("sequence nested too deep".into());
+            }
+            for (i, step) in steps.iter().enumerate() {
+                if i > 0 && !matches!(step, Action::Wait { .. }) {
+                    thread::sleep(STEP_GAP);
+                }
+                run_at(step, slot, depth + 1)?;
+            }
+            Ok(())
+        }
+        Action::TypeText { text, submit } => {
+            let e = enigo(slot)?;
+            if !text.is_empty() {
+                e.text(text).map_err(|e| e.to_string())?;
+            }
+            if *submit {
+                thread::sleep(Duration::from_millis(40));
+                e.key(Key::Return, Direction::Click).map_err(|e| e.to_string())?;
+            }
+            Ok(())
+        }
         Action::Media { key } => {
             let k = match key {
                 MediaKey::PlayPause => Key::MediaPlayPause,

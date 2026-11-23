@@ -151,7 +151,18 @@ pub(crate) fn on_key(app: &AppHandle, deck: &str, key: u8, down: bool) {
         Some(Action::SwitchProfile { profile }) => set_active(app, deck, &profile, true),
         Some(Action::None) | None => {}
         Some(a) => {
+            // a "switch profile" step inside a sequence takes effect on this deck too
+            let switch = match &a {
+                Action::Sequence { steps } => steps.iter().rev().find_map(|s| match s {
+                    Action::SwitchProfile { profile } => Some(profile.clone()),
+                    _ => None,
+                }),
+                _ => None,
+            };
             let _ = st.actions.lock().unwrap().send(actions::Job::Run(a));
+            if let Some(p) = switch {
+                set_active(app, deck, &p, true);
+            }
         }
     }
 }
@@ -230,6 +241,13 @@ fn pro_glyph(a: &Action, cfg: &Config) -> String {
         Action::SwitchProfile { profile } => {
             format!("txt {}", ascii(&mono(&cfg.profile(profile).map(|p| p.name.clone()).unwrap_or_default())))
         }
+        Action::Wait { .. } => "none".into(),
+        // a macro shows the glyph of its first real step
+        Action::Sequence { steps } => steps
+            .iter()
+            .find(|s| !matches!(s, Action::Wait { .. } | Action::None))
+            .map(|s| pro_glyph(s, cfg))
+            .unwrap_or_else(|| "txt >>".into()),
     }
 }
 

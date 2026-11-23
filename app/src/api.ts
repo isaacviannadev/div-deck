@@ -10,10 +10,12 @@ export type Action =
   | { type: "openApp"; path: string; name: string }
   | { type: "openUrl"; url: string }
   | { type: "shortcut"; mods: string[]; key: string }
-  | { type: "typeText"; text: string }
+  | { type: "typeText"; text: string; submit?: boolean }
   | { type: "media"; key: MediaKey }
   | { type: "shell"; command: string }
-  | { type: "switchProfile"; profile: string };
+  | { type: "switchProfile"; profile: string }
+  | { type: "sequence"; steps: Action[] }
+  | { type: "wait"; ms: number };
 
 export type ActionType = Action["type"];
 

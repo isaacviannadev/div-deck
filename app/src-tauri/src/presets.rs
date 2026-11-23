@@ -22,7 +22,7 @@ fn url(u: &str) -> Action {
     Action::OpenUrl { url: u.into() }
 }
 fn text(t: &str) -> Action {
-    Action::TypeText { text: t.into() }
+    Action::TypeText { text: t.into(), submit: false }
 }
 fn media(m: MediaKey) -> Action {
     Action::Media { key: m }

@@ -33,6 +33,10 @@ const P: Record<string, ReactNode> = {
   lock: <><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></>,
   screen: <><rect x="3" y="5" width="18" height="12" rx="2.5" /><path d="M9 20h6M12 17v3" /></>,
   keys: <><rect x="3" y="6" width="18" height="12" rx="2.5" /><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10" /></>,
+  steps: <><rect x="4" y="4" width="16" height="4.5" rx="1.5" /><rect x="4" y="10" width="16" height="4.5" rx="1.5" /><path d="M4 18.5h9" /></>,
+  clock: <><circle cx="12" cy="12" r="8" /><path d="M12 7.5V12l3 2" /></>,
+  up: <path d="M7 14l5-5 5 5" />,
+  down: <path d="M7 10l5 5 5-5" />,
   rotate: <><path d="M20 12a8 8 0 1 1-2.3-5.6" /><path d="M20 4v4h-4" /></>,
   pin: <><path d="M9 4h6l-1 6 3 3H7l3-3z" /><path d="M12 13v7" /></>,
 };
@@ -56,7 +60,20 @@ export const ACTION_TYPES: { type: ActionType; label: string; icon: IconName }[]
   { type: "typeText", label: "Texto", icon: "type" },
   { type: "shell", label: "Comando", icon: "terminal" },
   { type: "switchProfile", label: "Perfil", icon: "layers" },
+  { type: "sequence", label: "Sequência", icon: "steps" },
   { type: "none", label: "Nenhuma", icon: "dot" },
+];
+
+/** What a step inside a sequence can be (no nested sequences). */
+export const STEP_TYPES: { type: ActionType; label: string; icon: IconName }[] = [
+  { type: "shortcut", label: "Atalho", icon: "command" },
+  { type: "typeText", label: "Texto", icon: "type" },
+  { type: "wait", label: "Esperar", icon: "clock" },
+  { type: "openApp", label: "Abrir app", icon: "app" },
+  { type: "openUrl", label: "Link", icon: "link" },
+  { type: "media", label: "Mídia", icon: "play" },
+  { type: "shell", label: "Comando", icon: "terminal" },
+  { type: "switchProfile", label: "Perfil", icon: "layers" },
 ];
 
 export const MEDIA: { key: MediaKey; label: string; icon: IconName }[] = [
@@ -78,6 +95,8 @@ export function defaultAction(type: ActionType, profiles: Profile[]): Action {
     case "media": return { type, key: "playPause" };
     case "shell": return { type, command: "" };
     case "switchProfile": return { type, profile: profiles[0]?.id ?? "" };
+    case "sequence": return { type, steps: [] };
+    case "wait": return { type, ms: 500 };
   }
 }
 
@@ -119,6 +138,7 @@ export function keyFromEvent(e: KeyboardEvent): string | null {
 
 export function actionIcon(a: Action): IconName {
   if (a.type === "media") return MEDIA.find((m) => m.key === a.key)?.icon ?? "play";
+  if (a.type === "wait") return "clock";
   return ACTION_TYPES.find((t) => t.type === a.type)?.icon ?? "dot";
 }
 
@@ -128,10 +148,12 @@ export function actionSummary(a: Action, profiles: Profile[]): string {
     case "openApp": return a.name ? `Abre ${a.name}` : "Escolha um app";
     case "openUrl": return a.url.replace(/^https?:\/\//, "");
     case "shortcut": return a.key ? formatShortcut(a.mods, a.key) : "Grave um atalho";
-    case "typeText": return a.text ? `“${a.text.slice(0, 24)}${a.text.length > 24 ? "…" : ""}”` : "Texto vazio";
+    case "typeText": return (a.text ? `“${a.text.slice(0, 24)}${a.text.length > 24 ? "…" : ""}”` : a.submit ? "Enter" : "Texto vazio") + (a.submit && a.text ? " ↩" : "");
     case "media": return MEDIA.find((m) => m.key === a.key)?.label ?? "";
     case "shell": return a.command || "Comando vazio";
     case "switchProfile": return `→ ${profiles.find((p) => p.id === a.profile)?.name ?? "?"}`;
+    case "wait": return `Esperar ${(a.ms / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} s`;
+    case "sequence": return a.steps.length ? `${a.steps.length} passo${a.steps.length > 1 ? "s" : ""}: ${a.steps.filter((x) => x.type !== "wait").map((x) => actionSummary(x, profiles)).slice(0, 2).join(", ")}` : "Sequência vazia";
   }
 }
 

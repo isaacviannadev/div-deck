@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { COLS, isWindows, type Action, type AppInfo, type DeckModel, type KeyConfig, type Profile } from "./api";
 import {
-  ACTION_TYPES, AppIcon, Icon, MEDIA, MODS, actionIcon, actionSummary, defaultAction, formatShortcut, keyFromEvent, useApps,
+  ACTION_TYPES, AppIcon, Icon, MEDIA, MODS, STEP_TYPES, actionIcon, actionSummary, defaultAction, formatShortcut, keyFromEvent, useApps,
 } from "./ui";
 
 // ------------------------------------------------------------------ app picker
@@ -45,7 +45,7 @@ export function AppPicker({ onPick, onClose, exclude = [] }: { onPick: (a: AppIn
 
 // ------------------------------------------------------------------ shortcut field
 
-function ShortcutField({ mods, keyName, onChange }: { mods: string[]; keyName: string; onChange: (mods: string[], key: string) => void }) {
+function ShortcutField({ mods, keyName, onChange, compact = false }: { mods: string[]; keyName: string; onChange: (mods: string[], key: string) => void; compact?: boolean }) {
   const [rec, setRec] = useState(false);
   useEffect(() => {
     if (!rec) return;
@@ -78,7 +78,7 @@ function ShortcutField({ mods, keyName, onChange }: { mods: string[]; keyName: s
         <input className="key-input" value={keyName} placeholder="tecla" maxLength={9}
           onChange={(e) => onChange(mods, e.target.value.length === 1 ? e.target.value.toLowerCase() : e.target.value)} />
       </div>
-      <p className="hint">Funciona com o layout do teclado atual. Atalhos que o sistema intercepta dá para montar pelos botões.</p>
+      {!compact && <p className="hint">Funciona com o layout do teclado atual. Atalhos que o sistema intercepta dá para montar pelos botões.</p>}
     </div>
   );
 }
@@ -129,7 +129,6 @@ export function KeyEditor({ model = "mx", index, value, profiles, pressColor, on
   model?: DeckModel; index: number; value: KeyConfig; profiles: Profile[]; pressColor: string;
   onChange: (k: KeyConfig) => void; onPreviewColor: (c: string) => void; onTest: () => void;
 }) {
-  const [picking, setPicking] = useState(false);
   const a = value.action;
   const setAction = (action: Action, label?: string) => onChange({ ...value, action, label: label ?? value.label });
   const autoLabel = (old: Action) => !value.label || value.label === actionSummary(old, profiles) || (old.type === "openApp" && value.label === old.name) || (old.type === "media" && MEDIA.some((m) => m.label === value.label));
@@ -178,53 +177,7 @@ export function KeyEditor({ model = "mx", index, value, profiles, pressColor, on
         <>
           <div className="group-title">{ACTION_TYPES.find((t) => t.type === a.type)?.label}</div>
           <div className="group pad fields">
-            {a.type === "openApp" && (
-              <div className="pick-wrap">
-                <button className="field-btn" onClick={() => setPicking(true)}>
-                  {a.path ? <><AppIcon path={a.path} size={22} /><span>{a.name}</span></> : <span className="muted">Escolher aplicativo…</span>}
-                  <span className="chev">⌄</span>
-                </button>
-                {picking && (
-                  <AppPicker onClose={() => setPicking(false)}
-                    onPick={(app) => { setAction({ type: "openApp", path: app.path, name: app.name }, autoLabel(a) ? app.name : undefined); setPicking(false); }} />
-                )}
-              </div>
-            )}
-            {a.type === "shortcut" && (
-              <ShortcutField mods={a.mods} keyName={a.key} onChange={(mods, key) => setAction({ type: "shortcut", mods, key })} />
-            )}
-            {a.type === "media" && (
-              <div className="types media">
-                {MEDIA.map((m) => (
-                  <button key={m.key} className={`type ${a.key === m.key ? "on" : ""}`}
-                    onClick={() => setAction({ type: "media", key: m.key }, autoLabel(a) ? m.label : undefined)}>
-                    <span className="type-icon"><Icon name={m.icon} size={16} /></span><span>{m.label}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-            {a.type === "openUrl" && (
-              <>
-                <input className="input" value={a.url} placeholder="https://…" onChange={(e) => setAction({ type: "openUrl", url: e.target.value })} />
-                <p className="hint">Aceita links de apps também, como <code>steam://</code>, <code>slack://</code> ou <code>raycast://</code>.</p>
-              </>
-            )}
-            {a.type === "typeText" && (
-              <textarea className="input" rows={4} value={a.text} placeholder="Texto que será digitado"
-                onChange={(e) => setAction({ type: "typeText", text: e.target.value })} />
-            )}
-            {a.type === "shell" && (
-              <>
-                <textarea className="input code" rows={4} value={a.command} placeholder="open -a 'Visual Studio Code' ~/dev/projeto" spellCheck={false}
-                  onChange={(e) => setAction({ type: "shell", command: e.target.value })} />
-                <p className="hint">Roda em segundo plano com <code>{isWindows ? "cmd /C" : "zsh -lc"}</code>{isWindows ? "." : ", com o seu PATH."}</p>
-              </>
-            )}
-            {a.type === "switchProfile" && (
-              <select className="input" value={a.profile} onChange={(e) => setAction({ type: "switchProfile", profile: e.target.value })}>
-                {profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            )}
+            <ActionFields a={a} profiles={profiles} autoLabel={autoLabel} onChange={setAction} />
           </div>
         </>
       )}
@@ -249,6 +202,166 @@ export function KeyEditor({ model = "mx", index, value, profiles, pressColor, on
         <button className="btn" onClick={onTest} disabled={empty}><Icon name="bolt" size={14} /> Testar</button>
         <button className="btn plain danger" onClick={() => onChange({ label: "", color: "1c1f26", action: { type: "none" } })}>Limpar tecla</button>
       </div>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ action fields (key editor + sequence steps)
+
+function ActionFields({ a, profiles, onChange, autoLabel, inStep = false }: {
+  a: Action; profiles: Profile[]; onChange: (a: Action, label?: string) => void; autoLabel?: (old: Action) => boolean; inStep?: boolean;
+}) {
+  const [picking, setPicking] = useState(false);
+  const auto = (old: Action) => (autoLabel ? autoLabel(old) : false);
+  return (
+    <>
+      {a.type === "openApp" && (
+        <div className="pick-wrap">
+          <button className="field-btn" onClick={() => setPicking(true)}>
+            {a.path ? <><AppIcon path={a.path} size={22} /><span>{a.name}</span></> : <span className="muted">Escolher aplicativo…</span>}
+            <span className="chev">⌄</span>
+          </button>
+          {picking && (
+            <AppPicker onClose={() => setPicking(false)}
+              onPick={(app) => { onChange({ type: "openApp", path: app.path, name: app.name }, auto(a) ? app.name : undefined); setPicking(false); }} />
+          )}
+        </div>
+      )}
+      {a.type === "shortcut" && (
+        <ShortcutField compact={inStep} mods={a.mods} keyName={a.key} onChange={(mods, key) => onChange({ type: "shortcut", mods, key })} />
+      )}
+      {a.type === "media" && (
+        <div className="types media">
+          {MEDIA.map((m) => (
+            <button key={m.key} className={`type ${a.key === m.key ? "on" : ""}`}
+              onClick={() => onChange({ type: "media", key: m.key }, auto(a) ? m.label : undefined)}>
+              <span className="type-icon"><Icon name={m.icon} size={16} /></span><span>{m.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {a.type === "openUrl" && (
+        <>
+          <input className="input" value={a.url} placeholder="https://…" onChange={(e) => onChange({ type: "openUrl", url: e.target.value })} />
+          {!inStep && <p className="hint">Aceita links de apps também, como <code>steam://</code>, <code>slack://</code> ou <code>raycast://</code>.</p>}
+        </>
+      )}
+      {a.type === "typeText" && (
+        <>
+          <textarea className="input" rows={inStep ? 2 : 4} value={a.text} placeholder="Texto que será digitado"
+            onChange={(e) => onChange({ ...a, text: e.target.value })} />
+          <label className="check">
+            <input type="checkbox" checked={!!a.submit} onChange={(e) => onChange({ ...a, submit: e.target.checked })} />
+            <span>Apertar Enter no fim <small>(enviar a mensagem)</small></span>
+          </label>
+        </>
+      )}
+      {a.type === "shell" && (
+        <>
+          <textarea className="input code" rows={inStep ? 2 : 4} value={a.command} placeholder="open -a 'Visual Studio Code' ~/dev/projeto" spellCheck={false}
+            onChange={(e) => onChange({ type: "shell", command: e.target.value })} />
+          {!inStep && <p className="hint">Roda em segundo plano com <code>{isWindows ? "cmd /C" : "zsh -lc"}</code>{isWindows ? "." : ", com o seu PATH."}</p>}
+        </>
+      )}
+      {a.type === "switchProfile" && (
+        <select className="input" value={a.profile} onChange={(e) => onChange({ type: "switchProfile", profile: e.target.value })}>
+          {profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+      )}
+      {a.type === "wait" && (
+        <div className="wait-row">
+          <input className="input" type="number" min={50} max={10000} step={50} value={a.ms}
+            onChange={(e) => onChange({ type: "wait", ms: Math.max(0, Math.min(10000, Math.round(+e.target.value || 0))) })} />
+          <span>ms</span>
+          {[250, 500, 1000, 2000].map((v) => (
+            <button key={v} className={`chip ${a.ms === v ? "on" : ""}`} onClick={() => onChange({ type: "wait", ms: v })}>{v >= 1000 ? `${v / 1000} s` : `${v} ms`}</button>
+          ))}
+        </div>
+      )}
+      {a.type === "sequence" && <SequenceEditor steps={a.steps} profiles={profiles} onChange={(steps) => onChange({ type: "sequence", steps })} />}
+    </>
+  );
+}
+
+/** Ready-made macros to start from. */
+const SEQUENCE_TEMPLATES: { label: string; steps: Action[] }[] = [
+  {
+    label: "Mensagem no Slack",
+    steps: [
+      { type: "openApp", path: isWindows ? "Slack" : "/Applications/Slack.app", name: "Slack" },
+      { type: "wait", ms: 800 },
+      { type: "shortcut", mods: ["cmd"], key: "k" },
+      { type: "typeText", text: "nome do canal ou da pessoa", submit: true },
+      { type: "wait", ms: 400 },
+      { type: "typeText", text: "Bom dia! 👋", submit: true },
+    ],
+  },
+  {
+    label: "Prompt num chat de IA",
+    steps: [
+      { type: "shortcut", mods: ["cmd"], key: "a" },
+      { type: "shortcut", mods: ["cmd"], key: "c" },
+      { type: "openApp", path: isWindows ? "Claude" : "/Applications/Claude.app", name: "Claude" },
+      { type: "wait", ms: 700 },
+      { type: "typeText", text: "Revise este texto: " },
+      { type: "shortcut", mods: ["cmd"], key: "v" },
+      { type: "typeText", text: "", submit: true },
+    ],
+  },
+  {
+    label: "Commit e push",
+    steps: [
+      { type: "typeText", text: "git add -A && git commit -m \"wip\" && git push", submit: true },
+    ],
+  },
+];
+
+function SequenceEditor({ steps, profiles, onChange }: { steps: Action[]; profiles: Profile[]; onChange: (steps: Action[]) => void }) {
+  const set = (i: number, a: Action) => onChange(steps.map((s, j) => (j === i ? a : s)));
+  const move = (i: number, d: number) => {
+    const j = i + d;
+    if (j < 0 || j >= steps.length) return;
+    const n = [...steps]; [n[i], n[j]] = [n[j], n[i]]; onChange(n);
+  };
+  return (
+    <div className="seq">
+      {steps.length === 0 && (
+        <div className="seq-empty">
+          <p className="hint">Monte uma sequência de passos: atalhos, textos, pausas, abrir apps… Ou comece por um modelo:</p>
+          <div className="seq-templates">
+            {SEQUENCE_TEMPLATES.map((t) => <button key={t.label} className="chip" onClick={() => onChange(structuredClone(t.steps))}>{t.label}</button>)}
+          </div>
+        </div>
+      )}
+      <ol className="seq-list">
+        {steps.map((st, i) => (
+          <li key={i} className="seq-step">
+            <div className="seq-head">
+              <span className="seq-num">{i + 1}</span>
+              <select className="seq-type" value={st.type} onChange={(e) => set(i, defaultAction(e.target.value as Action["type"], profiles))}>
+                {STEP_TYPES.map((t) => <option key={t.type} value={t.type}>{t.label}</option>)}
+              </select>
+              <span className="seq-sum">{actionSummary(st, profiles)}</span>
+              <button className="seq-btn" disabled={i === 0} onClick={() => move(i, -1)} aria-label="Subir"><Icon name="up" size={14} /></button>
+              <button className="seq-btn" disabled={i === steps.length - 1} onClick={() => move(i, 1)} aria-label="Descer"><Icon name="down" size={14} /></button>
+              <button className="seq-btn" onClick={() => onChange(steps.filter((_, j) => j !== i))} aria-label="Remover passo"><Icon name="x" size={13} /></button>
+            </div>
+            <div className="seq-body"><ActionFields a={st} profiles={profiles} inStep onChange={(a) => set(i, a)} /></div>
+          </li>
+        ))}
+      </ol>
+      <div className="seq-add">
+        {STEP_TYPES.slice(0, 4).map((t) => (
+          <button key={t.type} className="chip" onClick={() => onChange([...steps, defaultAction(t.type, profiles)])}>
+            <Icon name={t.icon} size={12} /> {t.label}
+          </button>
+        ))}
+        <select className="chip" value="" onChange={(e) => { if (e.target.value) onChange([...steps, defaultAction(e.target.value as Action["type"], profiles)]); }}>
+          <option value="">Mais…</option>
+          {STEP_TYPES.slice(4).map((t) => <option key={t.type} value={t.type}>{t.label}</option>)}
+        </select>
+      </div>
+      <p className="hint">Os passos correm por ordem, com uma pequena pausa entre eles. Use “Esperar” quando um app demora a abrir.</p>
     </div>
   );
 }
