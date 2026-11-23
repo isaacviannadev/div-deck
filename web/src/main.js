@@ -46,6 +46,34 @@ function legendsFor(profileId) {
 const STORY_PROFILES = ['default', 'vscode', 'figma', 'discord'];
 const PROFILE_NAMES = { default: 'Padrão', vscode: 'VS Code', figma: 'Figma', discord: 'Discord' };
 
+// ============================================================== model selector (DIV Deck / DIV Deck Pro)
+const MODELS = ['mx', 'pro'];
+const params = new URLSearchParams(location.search);
+let model = params.get('modelo') === 'pro' || location.hash === '#pro' ? 'pro'
+  : params.get('modelo') === 'mx' ? 'mx'
+  : (() => { try { return localStorage.getItem('divdeck-model'); } catch { return null; } })();
+if (!MODELS.includes(model)) model = 'mx';
+const modelListeners = [];
+function setModel(m, scroll = false) {
+  if (!MODELS.includes(m)) return;
+  model = m;
+  document.documentElement.dataset.model = m;
+  document.querySelectorAll('[data-set-model]').forEach((b) => {
+    const on = b.dataset.setModel === m;
+    b.classList.toggle('on', on);
+    if (b.getAttribute('role') === 'tab') b.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
+  try { localStorage.setItem('divdeck-model', m); } catch {}
+  const u = new URL(location.href); u.searchParams.set('modelo', m); if (u.hash === '#pro') u.hash = ''; history.replaceState(null, '', u);
+  modelListeners.forEach((f) => f(m));
+  if (scroll) scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
+}
+document.querySelectorAll('[data-set-model]').forEach((b) => b.addEventListener('click', (e) => {
+  e.preventDefault();
+  setModel(b.dataset.setModel, b.hasAttribute('data-scroll-top'));
+}));
+setModel(model);
+
 // ============================================================== 3D deck
 const MM = 0.01;                    // model units are mm → scene units
 const T = THREE.MathUtils.degToRad(30);
@@ -163,11 +191,106 @@ function initThree() {
   }
   devkit.position.set(26, 8.2, 7.7);
 
+  // ---- DIV Deck Pro: 4" touchscreen panel on its desk foot (case parts from the real STLs)
+  const P_T = 15.5, P_W = 124, P_H = 72, VA = [85.22, 56.88];
+  const proRoot = new THREE.Group(); proRoot.rotation.x = -Math.PI / 2; proRoot.scale.setScalar(0.0001); pivot.add(proRoot);
+  const proRig = new THREE.Group(); proRig.rotation.z = Math.PI; proRoot.add(proRig);   // front of the panel towards +y like the MX
+  const panel = new THREE.Group(); proRig.add(panel);
+  panel.rotation.x = THREE.MathUtils.degToRad(65);
+  panel.position.set(0, (P_H / 2) * Math.cos(THREE.MathUtils.degToRad(65)), 5 + (P_H / 2) * Math.sin(THREE.MathUtils.degToRad(65)));
+  const pro = { back: new THREE.Group(), board: new THREE.Group(), pcb: new THREE.Group(), glass: new THREE.Group(), bezel: new THREE.Group(), pen: new THREE.Group(), foot: new THREE.Group() };
+  ['back', 'board', 'pcb', 'glass', 'bezel', 'pen'].forEach((k) => panel.add(pro[k]));
+  proRig.add(pro.foot);
+  const pmat = {
+    white: new THREE.MeshPhysicalMaterial({ color: 0xe8e9ec, roughness: 0.58, clearcoat: 0.08 }),
+    black: new THREE.MeshPhysicalMaterial({ color: 0x0b0b0d, roughness: 0.32, clearcoat: 0.5, clearcoatRoughness: 0.3 }),
+    pcb: new THREE.MeshPhysicalMaterial({ color: 0x8f1218, roughness: 0.42, clearcoat: 0.4 }),
+    glass: new THREE.MeshPhysicalMaterial({ color: 0x050506, roughness: 0.06, clearcoat: 1, metalness: 0.1 }),
+    pen: new THREE.MeshPhysicalMaterial({ color: 0x2a2c31, roughness: 0.4 }),
+  };
+  const PCB_X0 = -58.03;
+  { const m = new THREE.Mesh(new THREE.BoxGeometry(108.04, 61.74, 1.6), pmat.pcb); m.position.set(PCB_X0 + 54.02, 0, 8.65 + 0.8); pro.pcb.add(m);
+    // header strip at the PCB end
+    const h = new THREE.Mesh(new THREE.BoxGeometry(2.5, 35.6, 2.5), mat.devkit); h.position.set(PCB_X0 + 1.6, 0, 7.4); pro.pcb.add(h); }
+  { const g = new THREE.Mesh(new THREE.BoxGeometry(94.57, 60.88, 4.0), pmat.glass); g.position.set(0, 0, 10.25 + 2.0); pro.glass.add(g); }
+  // the picture: a canvas the page redraws (tiles, icons, labels) — what the app sends to the real deck
+  const scr = document.createElement('canvas'); scr.width = 960; scr.height = 640;
+  const sg = scr.getContext('2d');
+  const scrTex = new THREE.CanvasTexture(scr); scrTex.colorSpace = THREE.SRGBColorSpace; scrTex.anisotropy = 8;
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(VA[0], VA[1]), new THREE.MeshBasicMaterial({ map: scrTex, toneMapped: false }));
+  screen.position.z = 14.27; pro.glass.add(screen);
+  { const b = new THREE.Mesh(new THREE.BoxGeometry(22.5, 18, 1.0), mat.devkit); b.position.set(59.6 - 11.25, 0, 4.0); pro.board.add(b);
+    const usb = new THREE.Mesh(new THREE.BoxGeometry(7.4, 8.9, 3.2), mat.silver); usb.position.set(59.6 - 3.4, 0, 6.1); pro.board.add(usb);
+    const chip = new THREE.Mesh(new THREE.BoxGeometry(7, 7, 0.9), mat.sw); chip.position.set(46, 0, 4.9); pro.board.add(chip); }
+  { const body = new THREE.Mesh(new THREE.CylinderGeometry(2.75, 2.75, 73, 24), pmat.pen); body.rotation.z = Math.PI / 2; body.position.x = -6;
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(2.75, 12, 24), pmat.pen); tip.rotation.z = -Math.PI / 2; tip.position.x = 36.5;
+    pro.pen.add(body, tip); pro.pen.position.set(-4, -28.5, 3.15); }
+  const proPick = [screen];
+  let proCtr = null;
+  new GLTFLoader().load('assets/divdeck-pro.glb', (gltf) => {
+    const get = (n) => { const m = gltf.scene.getObjectByName(n); m.geometry = toCreasedNormals(m.geometry, THREE.MathUtils.degToRad(35)); return m; };
+    const back = get('back'); back.material = pmat.white; pro.back.add(back);
+    const bezel = get('bezel'); bezel.material = pmat.black; pro.bezel.add(bezel);
+    const foot = get('foot'); foot.material = pmat.white; pro.foot.add(foot);
+    proRoot.scale.setScalar(MM); proRoot.position.set(0, 0, 0); proRoot.updateMatrixWorld(true);
+    const saved = [pivot.position.clone(), pivot.rotation.clone()];
+    pivot.position.set(0, 0, 0); pivot.rotation.set(0, 0, 0); scene.updateMatrixWorld(true);
+    proCtr = new THREE.Box3().setFromObject(proRoot, true).getCenter(new THREE.Vector3()).negate();
+    pivot.position.copy(saved[0]); pivot.rotation.copy(saved[1]);
+  });
+
+  // tiles on the Pro screen (same grid as the firmware: 5 x 3, 8 px margin and gap at 480 x 320)
+  const proColor = [], proTarget = [], proFlip = new Array(15).fill(0);
+  for (let k = 0; k < 15; k++) { proColor.push(new THREE.Color(0x38d6ff)); proTarget.push(new THREE.Color(0x38d6ff)); }
+  let proLegends = [];
+  const TW = (960 - 32 - 64) / 5, TH = (640 - 32 - 32) / 3;
+  const tileXY = (k) => [16 + (k % 5) * (TW + 16), 16 + Math.floor(k / 5) * (TH + 16)];
+  function drawScreen(wave, t, lp, hover, flash) {
+    sg.fillStyle = '#000'; sg.fillRect(0, 0, 960, 640);
+    for (let k = 0; k < 15; k++) {
+      const [x, y] = tileXY(k);
+      const c = proColor[k].clone();
+      let ring = 0;
+      if (wave > 0) {
+        const d = Math.hypot((k % 5) - 2, Math.floor(k / 5) - 1);
+        hsl.setHSL((((d * 0.24 + (k % 5) * 0.05 - t * 0.3 + lp * 0.8) % 1) + 1) % 1, 0.9, 0.55);
+        c.lerp(hsl, wave);
+        ring = Math.max(0, Math.sin(d * 1.6 - t * 4.2)) ** 3;
+      }
+      const press = Math.max(flash[k], hover === k ? 0.6 : 0, Math.sin(proFlip[k] * Math.PI));
+      const inset = press * 7;
+      const f = 0.78 + press * 0.22 + ring * 0.2;
+      sg.fillStyle = `rgb(${Math.min(255, c.r * 255 * f)},${Math.min(255, c.g * 255 * f)},${Math.min(255, c.b * 255 * f)})`;
+      sg.beginPath(); sg.roundRect(x + inset, y + inset, TW - 2 * inset, TH - 2 * inset, 28); sg.fill();
+      const gr = sg.createLinearGradient(0, y, 0, y + TH);
+      gr.addColorStop(0, 'rgba(255,255,255,.16)'); gr.addColorStop(0.55, 'rgba(255,255,255,0)');
+      sg.fillStyle = gr; sg.fill();
+      const l = proLegends[k]; if (!l) continue;
+      const lum = 0.299 * c.r + 0.587 * c.g + 0.114 * c.b;
+      const ink = lum * f > 0.68 ? '#111' : '#fff';
+      if (l.icon) drawIcon(sg, l.icon, x + TW / 2, y + TH / 2 - 14, 64, ink);
+      else if (l.text) {
+        sg.fillStyle = ink; sg.textAlign = 'center'; sg.textBaseline = 'middle';
+        sg.font = `700 ${l.text.length > 3 ? 30 : 40}px -apple-system, "SF Pro Display", Inter, system-ui, sans-serif`;
+        sg.fillText(l.text, x + TW / 2, y + TH / 2 - 14);
+      }
+      if (l.label) {
+        sg.fillStyle = ink; sg.globalAlpha = 0.9; sg.textAlign = 'center'; sg.textBaseline = 'alphabetic';
+        sg.font = `600 22px -apple-system, "SF Pro Text", Inter, system-ui, sans-serif`;
+        sg.fillText(l.label.length > 11 ? l.label.slice(0, 10) + '…' : l.label, x + TW / 2, y + TH - 18);
+        sg.globalAlpha = 1;
+      }
+    }
+    scrTex.needsUpdate = true;
+  }
+
   // ---- a profile changes what each key does (icon / label on top) and its LED colour
   const legendCanvas = [], legendTex = [];
   function applyProfile(profileId) {
     const p = presets.profiles.find((x) => x.id === profileId);
-    p.keys.forEach((k, i) => ledTarget[i].set('#' + k.color));
+    p.keys.forEach((k, i) => { ledTarget[i].set('#' + k.color); proTarget[i].set('#' + k.color); });
+    proLegends = legendsFor(profileId);
+    proFlip.fill(1);
     legendsFor(profileId).forEach((l, k) => {
       const c = legendCanvas[k]; if (!c) return;
       const g = c.getContext('2d');
@@ -192,9 +315,10 @@ function initThree() {
   }
   const flip = new Array(15).fill(0); // little press when the legend changes
 
+  let mxCtr = new THREE.Vector3();
   const caps = [], capMats = [];
   const pick = []; // meshes for raycasting
-  const state = { p: 0, explode: 0, mx: 0, my: 0, tmx: 0, tmy: 0, hover: -1, profile: '', wave: 0, flash: new Array(15).fill(0) };
+  const state = { mix: model === 'pro' ? 1 : 0, p: 0, explode: 0, mx: 0, my: 0, tmx: 0, tmy: 0, hover: -1, profile: '', wave: 0, flash: new Array(15).fill(0) };
 
   new GLTFLoader().load('assets/divdeck.glb', (gltf) => {
     const get = (n) => { const m = gltf.scene.getObjectByName(n); m.geometry = toCreasedNormals(m.geometry, THREE.MathUtils.degToRad(35)); return m; };
@@ -224,7 +348,7 @@ function initThree() {
     pivot.position.set(0, 0, 0); pivot.rotation.set(0, 0, 0);
     scene.updateMatrixWorld(true);
     const ctr = new THREE.Box3().setFromObject(root, true).getCenter(new THREE.Vector3());
-    root.position.sub(ctr);
+    root.position.sub(ctr); mxCtr = root.position.clone();
     pivot.position.copy(saved[0]); pivot.rotation.copy(saved[1]);
     applyProfile(state.profile || 'default');
     document.documentElement.classList.add('deck-ready');
@@ -248,6 +372,7 @@ function initThree() {
       ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     }, { passive: true });
     canvas.addEventListener('pointerdown', () => { if (state.hover >= 0) ripple(state.hover); });
+    canvas.addEventListener('pointerleave', () => { ndc.set(9, 9); });
   }
   function ripple(k0) {
     const r0 = Math.floor(k0 / 5), c0 = k0 % 5;
@@ -291,6 +416,8 @@ function initThree() {
   let visible = true;
   new IntersectionObserver(([e]) => { visible = e.isIntersecting; }).observe(stage);
 
+  let proFrame = 0;
+  const floatSel = document.querySelector('.model-float');
   const clock = new THREE.Timer();
   const hsl = new THREE.Color();
   function frame() {
@@ -300,9 +427,22 @@ function initThree() {
     readScroll();
     const p = reduceMotion ? 0 : state.p;
 
+    // model switch: the current deck spins away, the other one spins in
+    state.mix = lerp(state.mix, model === 'pro' ? 1 : 0, reduceMotion ? 1 : 0.07);
+    const m = state.mix;
+    const sMx = 1 - smooth(0.0, 0.55, m), sPro = smooth(0.45, 1.0, m);
+    root.visible = sMx > 0.001; root.scale.setScalar(MM * Math.max(sMx, 0.0001)); root.position.copy(mxCtr).multiplyScalar(sMx);
+    proRoot.visible = !!proCtr && sPro > 0.001;
+    if (proCtr) { proRoot.scale.setScalar(MM * Math.max(sPro, 0.0001)); proRoot.position.copy(proCtr).multiplyScalar(sPro); }
+    const isPro = m > 0.5;
+
     // explode 0.30 → 0.52, hold, reassemble 0.70 → 0.84
     const ex = smooth(0.3, 0.52, p) * (1 - smooth(0.7, 0.84, p));
     state.explode = ex;
+    // Pro: the layers lift off the back along the panel's normal, the foot drops, the pen slides out
+    pro.board.position.z = ex * 14; pro.pcb.position.z = ex * 32; pro.glass.position.z = ex * 50; pro.bezel.position.z = ex * 76;
+    pro.pen.position.x = -4 + ex * 95;
+    pro.foot.position.z = -ex * 26; pro.foot.position.y = ex * 18;
     layers.caps.position.z = ex * 62;
     layers.cover.position.z = ex * 42;
     layers.plate.position.z = ex * 25;
@@ -317,16 +457,25 @@ function initThree() {
     let [yaw, pitch, dist, ox, oy] = camAt(p);
     if (stage.clientWidth < 900) { ox = 0; oy = p < 0.1 ? -0.75 : 0.22; dist *= 1.45; }
     const idle = reduceMotion ? 0 : Math.sin(t * 0.5) * 0.04;
-    pivot.rotation.set(pitch + state.my * 0.12, Math.PI + yaw + state.mx * 0.28 + idle, 0, 'XYZ');
+    const spin = Math.sin(Math.PI * m) * 0.9 * (model === 'pro' ? 1 : -1);
+    pivot.rotation.set(pitch + state.my * 0.12, Math.PI + yaw + state.mx * 0.28 + idle + spin, 0, 'XYZ');
     pivot.position.set(ox, oy + Math.sin(t * 0.8) * 0.012, 0);
     camera.position.set(0, 0, dist);
 
     // hover (only when assembled)
     state.hover = -1;
-    if (pick.length && ex < 0.05 && finePointer) {
+    if (ex < 0.05 && finePointer && Math.abs(m - Math.round(m)) < 0.02) {
       ray.setFromCamera(ndc, camera);
-      const hit = ray.intersectObjects(pick, false)[0];
-      if (hit) state.hover = hit.object.userData.key;
+      if (!isPro && pick.length) {
+        const hit = ray.intersectObjects(pick, false)[0];
+        if (hit) state.hover = hit.object.userData.key;
+      } else if (isPro && proCtr) {
+        const hit = ray.intersectObjects(proPick, false)[0];
+        if (hit && hit.uv) {
+          const px = hit.uv.x * 960, py = (1 - hit.uv.y) * 640;
+          for (let k = 0; k < 15; k++) { const [x, y] = tileXY(k); if (px >= x && px <= x + TW && py >= y && py <= y + TH) state.hover = k; }
+        }
+      }
     }
     canvas.style.cursor = state.hover >= 0 ? 'pointer' : '';
 
@@ -361,6 +510,12 @@ function initThree() {
       if (caps[k]) caps[k].position.z = lerp(caps[k].position.z, CAP_Z - (hov ? 2.2 : 0) - state.flash[k] * 1.2 - Math.sin(flip[k] * Math.PI) * 1.4, 0.25);
     }
 
+    // Pro screen: tile colours follow the profile, rainbow wave in the light phase
+    if (isPro || m > 0.3) {
+      for (let k = 0; k < 15; k++) { proColor[k].lerp(proTarget[k], 0.08); proFlip[k] = Math.max(0, proFlip[k] - 0.05); }
+      if (proFrame++ % 2 === 0) drawScreen(wave, t, lp, state.hover, state.flash);
+    }
+
     // captions
     captions.forEach((el) => {
       const [a, b] = el.dataset.at.split(',').map(Number);
@@ -370,6 +525,7 @@ function initThree() {
       el.style.pointerEvents = o > 0.5 ? 'auto' : 'none';
     });
     document.documentElement.style.setProperty('--story', p.toFixed(4));
+    floatSel?.classList.toggle('live', p > 0.13);
 
     composer.render();
   }

@@ -78,6 +78,19 @@ nav .links .pill { color: #fff; background: var(--accent); padding: 5px 12px; bo
 .chip i { width: 7px; height: 7px; border-radius: 50%; background: #30d158; box-shadow: 0 0 10px #30d158; }
 
 .no-webgl #story { height: auto; }
+/* model selector (v0.2: DIV Deck Pro) */
+html[data-model="mx"] .v-pro, html[data-model="pro"] .v-mx { display: none !important; }
+.models { display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.1); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); margin-bottom: 22px; }
+.models button { appearance: none; border: 0; background: none; color: var(--text-2); font: inherit; font-size: 15px; font-weight: 600; padding: 8px 18px; border-radius: 999px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: background .25s, color .25s; }
+.models button:hover { color: var(--text); }
+.models button.on { background: #f5f5f7; color: #000; }
+.models em { font-style: normal; font-size: 11px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; padding: 2px 7px; border-radius: 8px; background: linear-gradient(90deg, #38d6ff, #7c5cff); color: #fff; }
+.model-float { position: absolute; left: 50%; bottom: 22px; translate: -50% 0; z-index: 3; margin: 0; opacity: clamp(0, calc((var(--story, 0) - .1) * 30), 1); pointer-events: none; transform: scale(.9); }
+html:not(.no-webgl) .model-float.live { pointer-events: auto; }
+.model-float button { font-size: 13px; padding: 6px 14px; }
+nav .links .new { display: inline-flex; align-items: center; gap: 6px; }
+nav .links .new em { font-style: normal; font-size: 10px; font-weight: 700; text-transform: uppercase; padding: 1px 6px; border-radius: 7px; background: linear-gradient(90deg, #38d6ff, #7c5cff); color: #fff; }
+
 .no-webgl #stage { position: relative; height: auto; padding: 120px 0 60px; }
 .no-webgl .cap:not(.hero) { display: none; }
 .no-webgl .hero { position: relative; top: 0; }
@@ -172,6 +185,7 @@ footer a { color: var(--text-2); }
   <path transform="translate(25.10 0)" d="M5.234899328859061 13.5C8.883221476510068 13.5 11.001342281879197 11.236912751677853 11.001342281879197 7.483892617449664C11.001342281879197 3.7550335570469784 8.883221476510068 1.4999999999999982 5.34765100671141 1.4999999999999982H1.3288590604026846V13.5ZM3.16510067114094 11.889261744966444V3.1107382550335565H5.226845637583893C7.844295302013424 3.1107382550335565 9.197315436241611 4.665100671140939 9.197315436241611 7.483892617449664C9.197315436241611 10.326845637583892 7.844295302013424 11.889261744966444 5.13020134228188 11.889261744966444ZM14.828456375838929 1.4999999999999982H12.992214765100673V13.5H14.828456375838929ZM20.668993288590606 13.5H22.91597315436242L27.20053691275168 1.4999999999999982H25.21127516778524L22.940134228187922 8.176510067114094C22.642147651006713 9.086577181208053 22.271677852348994 10.318791946308725 21.804563758389264 12.026174496644295C21.329395973154362 10.351006711409395 20.950872483221477 9.086577181208053 20.644832214765103 8.176510067114094L18.309261744966445 1.4999999999999982H16.32805369127517ZM36.7634899328859 13.5C40.41181208053691 13.5 42.52993288590604 11.236912751677853 42.52993288590604 7.483892617449664C42.52993288590604 3.7550335570469784 40.41181208053691 1.4999999999999982 36.876241610738255 1.4999999999999982H32.85744966442953V13.5ZM34.69369127516779 11.889261744966444V3.1107382550335565H36.75543624161074C39.37288590604027 3.1107382550335565 40.725906040268455 4.665100671140939 40.725906040268455 7.483892617449664C40.725906040268455 10.326845637583892 39.37288590604027 11.889261744966444 36.658791946308725 11.889261744966444ZM48.265771812080544 13.68523489932886C50.19060402684564 13.68523489932886 51.56778523489933 12.742953020134228 51.99463087248323 11.341610738255033L50.327516778523496 10.946979865771812C50.01342281879195 11.784563758389261 49.27248322147651 12.219463087248322 48.281879194630875 12.219463087248322C46.80805369127518 12.219463087248322 45.809395973154366 11.27718120805369 45.74496644295303 9.53758389261745H52.13154362416108V8.90939597315436C52.13154362416108 5.663758389261744 50.16644295302014 4.383221476510066 48.11275167785236 4.383221476510066C45.591946308724836 4.383221476510066 43.965100671140945 6.291946308724832 43.965100671140945 9.06241610738255C43.965100671140945 11.857046979865771 45.608053691275174 13.68523489932886 48.265771812080544 13.68523489932886ZM45.753020134228194 8.216778523489932C45.84966442953021 6.920134228187918 46.70335570469799 5.848993288590603 48.120805369127524 5.848993288590603C49.48187919463088 5.848993288590603 50.24697986577182 6.799328859060402 50.3758389261745 8.216778523489932ZM57.61771812080538 13.68523489932886C59.510335570469806 13.68523489932886 60.976107382550346 12.662416107382551 61.41100671140941 10.963087248322147L59.7358389261745 10.560402684563758C59.49422818791947 11.53489932885906 58.745234899328864 12.187248322147651 57.625771812080544 12.187248322147651C55.99892617449665 12.187248322147651 55.21771812080538 10.761744966442953 55.21771812080538 9.046308724832215C55.21771812080538 7.306711409395972 55.99892617449665 5.8812080536912745 57.625771812080544 5.8812080536912745C58.72912751677853 5.8812080536912745 59.4620134228188 6.517449664429529 59.70362416107383 7.443624161073825L61.3868456375839 7.040939597315435C60.94389261744967 5.373825503355704 59.4861744966443 4.383221476510066 57.61771812080538 4.383221476510066C55.080805369127525 4.383221476510066 53.41369127516779 6.243624161073825 53.41369127516779 9.046308724832215C53.41369127516779 11.8248322147651 55.080805369127525 13.68523489932886 57.61771812080538 13.68523489932886ZM63.11194630872484 13.5H64.88375838926176V10.326845637583892L65.74550335570471 9.465100671140938L68.78174496644296 13.5H70.9723489932886L67.0985234899329 8.377852348993288L70.7226845637584 4.4959731543624155H68.59651006711411L65.04483221476511 8.297315436241611H64.88375838926176V1.4999999999999982H63.11194630872484Z"/>
 </svg></a>
   <div class="links">
+    <a class="new" href="?modelo=pro" data-set-model="pro" data-scroll-top>DIV Deck Pro <em>novo</em></a>
     <a href="#comecar">Começar</a>
     <a href="#recursos">Recursos</a>
     <a href="#perfis">Perfis</a>
@@ -186,9 +200,20 @@ footer a { color: var(--text-2); }
     <div class="loader" aria-hidden="true"></div>
 
     <header class="cap hero" data-at="-0.2,0.11">
-      <div class="eyebrow">DIV Deck</div>
-      <h1>15 teclas.<br>Um perfil para cada app.</h1>
-      <p class="lead">Abra apps, dispare atalhos, controle a música e digite prompts com um toque. O perfil troca sozinho conforme o app em que você está.</p>
+      <div class="models" role="tablist" aria-label="Modelo">
+        <button role="tab" data-set-model="mx">DIV Deck</button>
+        <button role="tab" data-set-model="pro">DIV Deck Pro <em>Novo</em></button>
+      </div>
+      <div class="v-mx">
+        <div class="eyebrow">DIV Deck</div>
+        <h1>15 teclas.<br>Um perfil para cada app.</h1>
+        <p class="lead">Abra apps, dispare atalhos, controle a música e digite prompts com um toque. O perfil troca sozinho conforme o app em que você está.</p>
+      </div>
+      <div class="v-pro">
+        <div class="eyebrow">DIV Deck Pro · novo</div>
+        <h1>Uma tela.<br>Todas as teclas que precisar.</h1>
+        <p class="lead">Tela de toque de 4" onde cada tecla mostra o ícone, o nome e a cor do que faz. Encaixa no braço do monitor com ímanes ou fica de pé na mesa.</p>
+      </div>
       <div class="ctas">
         <a class="btn hero-dl magnetic" href="#baixar"><span>Baixar o app</span></a>
         <a class="btn ghost" href="#comecar">Primeiros passos ›</a>
@@ -196,15 +221,22 @@ footer a { color: var(--text-2); }
       <div class="meta" id="hero-meta">macOS 12+ · Windows 10/11 · grátis</div>
     </header>
     <div class="scroll-hint" aria-hidden="true">Role para ver por dentro<i></i></div>
+    <div class="models model-float" role="group" aria-label="Modelo">
+      <button data-set-model="mx">DIV Deck</button>
+      <button data-set-model="pro">DIV Deck Pro</button>
+    </div>
 
     <div class="cap side l" data-at="0.15,0.3">
-      <small>Teclas mecânicas</small>
+      <div class="v-mx"><small>Teclas mecânicas</small>
       <h2>Clique de verdade.<br>Em cada atalho.</h2>
-      <p>Switches MX com encaixe hot-swap: troque switches e keycaps sem solda. Passe o mouse sobre as teclas.</p>
+      <p>Switches MX com encaixe hot-swap: troque switches e keycaps sem solda. Passe o mouse sobre as teclas.</p></div>
+      <div class="v-pro"><small>Tela de toque</small>
+      <h2>Toque e pronto.<br>Cada tecla, do seu jeito.</h2>
+      <p>Tela de 4" com toque: o app desenha cada tecla com o ícone, o nome e a cor que você escolher. Passe o mouse sobre a tela.</p></div>
     </div>
 
     <div class="cap side r" data-at="0.33,0.5">
-      <small>Por dentro</small>
+      <div class="v-mx"><small>Por dentro</small>
       <h2>Cada camada<br>tem um motivo.</h2>
       <ul>
         <li><b>Keycaps</b> em PLA translúcido</li>
@@ -212,19 +244,34 @@ footer a { color: var(--text-2); }
         <li><b>Placa</b> com 15 switches MX</li>
         <li><b>PCB</b> de 4 camadas</li>
         <li><b>ESP32</b> escondido na base</li>
-      </ul>
+      </ul></div>
+      <div class="v-pro"><small>Por dentro</small>
+      <h2>Fino por fora.<br>Pensado por dentro.</h2>
+      <ul>
+        <li><b>Moldura</b> preta presa por clique</li>
+        <li><b>Tela</b> de 4" 480 × 320 com toque</li>
+        <li><b>ESP32-S3</b> escondido no corpo</li>
+        <li><b>Ímanes</b> fechados dentro da peça</li>
+        <li><b>Caneta</b> guardada na traseira</li>
+      </ul></div>
     </div>
 
     <div class="cap side l" data-at="0.52,0.69">
-      <small>Luz</small>
+      <div class="v-mx"><small>Luz</small>
       <h2><span class="rainbow">16,7 milhões</span><br>de cores por tecla.</h2>
-      <p>Um LED RGB sob cada tecla acende a keycap translúcida inteira. Escolha a cor no app; ela fica gravada no deck mesmo sem o computador.</p>
+      <p>Um LED RGB sob cada tecla acende a keycap translúcida inteira. Escolha a cor no app; ela fica gravada no deck mesmo sem o computador.</p></div>
+      <div class="v-pro"><small>Cor</small>
+      <h2><span class="rainbow">Cada tecla</span><br>com a sua cor.</h2>
+      <p>Ícone, nome e cor em cada tecla, desenhados na tela pelo app. Grave no deck e ele mostra tudo mesmo sem o computador.</p></div>
     </div>
 
     <div class="cap side r" data-at="0.73,0.96">
-      <small>Perfis automáticos</small>
+      <div class="v-mx"><small>Perfis automáticos</small>
       <h2>Abriu o app,<br>o perfil troca.</h2>
-      <p>Cada tecla ganha outra função e outra cor de LED: no VS Code vira paleta e terminal, no Figma vira ferramentas, no Discord vira mudo e navegação entre canais.</p>
+      <p>Cada tecla ganha outra função e outra cor de LED: no VS Code vira paleta e terminal, no Figma vira ferramentas, no Discord vira mudo e navegação entre canais.</p></div>
+      <div class="v-pro"><small>Perfis automáticos</small>
+      <h2>Abriu o app,<br>a tela muda.</h2>
+      <p>As 15 teclas mudam de ícone, nome e cor conforme o app em foco. Tem um DIV Deck também? Os dois funcionam juntos, cada um com o seu perfil.</p></div>
       <span class="chip"><i></i><span id="story-profile">Padrão</span></span>
     </div>
   </div>
@@ -232,8 +279,10 @@ footer a { color: var(--text-2); }
 
 <section class="alt"><div class="wrap">
   <div class="stats stagger">
-    <div class="stat"><b data-count="15">15</b><span>teclas mecânicas hot-swap</span></div>
-    <div class="stat"><b data-count="16777216">16.777.216</b><span>cores por tecla</span></div>
+    <div class="stat v-pro"><b>4"</b><span>tela de toque, 480 × 320</span></div>
+    <div class="stat v-pro"><b>8</b><span>ímanes escondidos no corpo e no suporte</span></div>
+    <div class="stat v-mx"><b data-count="15">15</b><span>teclas mecânicas hot-swap</span></div>
+    <div class="stat v-mx"><b data-count="16777216">16.777.216</b><span>cores por tecla</span></div>
     <div class="stat"><b data-count="9">9</b><span>perfis prontos</span></div>
     <div class="stat"><b data-count="2">2</b><span>minutos para começar</span></div>
   </div>
@@ -312,6 +361,9 @@ footer a { color: var(--text-2); }
     <details><summary>Os atalhos não funcionam no Mac.</summary><p>Falta a permissão de Acessibilidade. Em <em>Ajustes › Privacidade e Segurança › Acessibilidade</em>, remova <strong>DIV Deck</strong> com “–”, adicione de novo com “+” e ative. Isso também resolve depois de atualizar o app.</p></details>
     <details><summary>O perfil não muda sozinho.</summary><p>Ative “Trocar pelo app em foco” na barra lateral e confira se o app está vinculado ao perfil (botão “Vincular app”). Enquanto a janela do DIV Deck está em foco o perfil não muda — de propósito, para você editar em paz.</p></details>
     <details><summary>As cores somem quando fecho o app.</summary><p>Clique em “Gravar cores no deck”. Assim ele guarda as cores e continua aceso, respirando, mesmo sem o app aberto.</p></details>
+    <details><summary>Qual é a diferença entre o DIV Deck e o DIV Deck Pro?</summary><p>O DIV Deck tem 15 teclas mecânicas com luz RGB: clique de verdade. O Pro troca as teclas por uma tela de toque de 4", onde cada tecla mostra o ícone, o nome e a cor do que faz. Os dois usam o mesmo app e os mesmos perfis.</p></details>
+    <details><summary>Posso usar os dois ao mesmo tempo?</summary><p>Sim. A partir da versão 0.2 o app reconhece vários decks ligados juntos. Cada um tem nome e perfil próprios e pode seguir ou não o app em foco.</p></details>
+    <details><summary>Como prendo o Pro no braço do monitor?</summary><p>A braçadeira aperta no tubo de 35 mm e leva uma placa com ímanes. O painel encaixa e sai com a mão; os ímanes ficam fechados dentro das peças. Na mesa, ele fica de pé num pé simples.</p></details>
     <details><summary>Posso trocar os switches e as keycaps?</summary><p>Sim. As teclas usam sockets hot-swap para switches MX de 3 e 5 pinos: puxe com um extrator e encaixe o novo. Keycaps MX padrão servem.</p></details>
   </div>
 </div></section>
