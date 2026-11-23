@@ -359,12 +359,12 @@ fn spawn_front_app_watcher(app: AppHandle) {
 
 #[tauri::command]
 fn get_state(app: AppHandle, st: tauri::State<AppState>) -> StateDto {
-    StateDto {
-        config: st.config.lock().unwrap().clone(),
-        decks: deck_list(&app),
-        front_app: st.front_app.lock().unwrap().as_ref().map(|f| if f.0.is_empty() { f.1.clone() } else { f.0.clone() }),
-        accessibility: actions::accessibility_trusted(),
-    }
+    // one lock at a time: a guard kept alive across deck_list() (which locks the config again)
+    // would deadlock the main thread and the window would never open
+    let config = st.config.lock().unwrap().clone();
+    let front_app = st.front_app.lock().unwrap().as_ref().map(|f| if f.0.is_empty() { f.1.clone() } else { f.0.clone() });
+    let decks = deck_list(&app);
+    StateDto { config, decks, front_app, accessibility: actions::accessibility_trusted() }
 }
 
 /// Saves profiles and settings. The deck list is owned by the backend (decks are registered when
