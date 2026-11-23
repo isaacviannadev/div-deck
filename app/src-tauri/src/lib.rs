@@ -550,6 +550,11 @@ fn accessibility_status() -> bool {
 }
 
 #[tauri::command]
+fn request_accessibility(reset: bool) -> bool {
+    actions::request_accessibility(reset)
+}
+
+#[tauri::command]
 fn open_accessibility_settings() {
     #[cfg(target_os = "macos")]
     let _ = std::process::Command::new("open")
@@ -785,6 +790,7 @@ pub fn run() {
             list_apps,
             app_icon,
             accessibility_status,
+            request_accessibility,
             open_accessibility_settings,
         ])
         .build(tauri::generate_context!())

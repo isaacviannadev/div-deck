@@ -448,7 +448,18 @@ function Main({ initial }: { initial: AppStateDto }) {
           <div className="banner">
             <Icon name="warn" size={16} />
             <span>Atalhos, mídia e texto precisam da permissão de <b>Acessibilidade</b>.</span>
-            <button className="btn small" onClick={() => api.openAccessibilitySettings()}>Abrir Ajustes…</button>
+            <button className="btn small" onClick={() => api.requestAccessibility(false).then((ok) => { setAxOk(ok); if (!ok) api.openAccessibilitySettings(); })}>Dar permissão…</button>
+            <button className="btn small plain" title="Use se o DIV Deck já aparece ligado em Acessibilidade mas não funciona" onClick={async () => {
+              const ok = await confirmDialog({
+                title: "Reparar a permissão?",
+                message: "Depois de uma atualização, o macOS às vezes mostra o DIV Deck ligado em Acessibilidade sem o deixar funcionar. Isto apaga a entrada antiga e pede a permissão de novo: é só ligar o DIV Deck na janela que abrir.",
+                confirm: "Reparar",
+              });
+              if (!ok) return;
+              const now = await api.requestAccessibility(true);
+              setAxOk(now);
+              if (!now) { api.openAccessibilitySettings(); toast.info("Ligue o DIV Deck na lista de Acessibilidade", { description: "O aviso some sozinho quando ficar ativo." }); }
+            }}>Já está ligada?</button>
           </div>
         )}
 

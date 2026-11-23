@@ -114,6 +114,7 @@ function on<T>(event: string, cb: (payload: T) => void): Promise<Unlisten> {
 export const api = {
   getState: () => call<AppStateDto>("get_state"),
   saveConfig: (config: Config) => call<void>("save_config", { config }),
+  requestAccessibility: (reset: boolean) => call<boolean>("request_accessibility", { reset }),
   updateDeck: (deck: DeckSettings) => call<void>("update_deck", { deck }),
   iconsMissing: (hashes: string[]) => call<string[]>("icons_missing", { hashes }),
   putIcon: (hash: string, data: string) => call<void>("put_icon", { hash, data }),
@@ -223,6 +224,8 @@ const mock = (() => {
           pushDecks();
           return;
         }
+        case "request_accessibility":
+          return true;
         case "icons_missing":
           return [];
         case "put_icon":

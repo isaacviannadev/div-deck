@@ -223,3 +223,46 @@ pub fn accessibility_trusted() -> bool {
 pub fn accessibility_trusted() -> bool {
     true
 }
+
+/// Ask macOS for the Accessibility permission (system prompt + entry in Settings).
+/// `reset` first clears a stale entry: after an update signed differently, the switch can show "on"
+/// for the old build while the new one isn't actually trusted.
+#[cfg(target_os = "macos")]
+pub fn request_accessibility(reset: bool) -> bool {
+    use std::ffi::c_void;
+    if reset {
+        let _ = Command::new("/usr/bin/tccutil").args(["reset", "Accessibility", "com.divtecnologia.divdeck"]).status();
+    }
+    #[link(name = "ApplicationServices", kind = "framework")]
+    unsafe extern "C" {
+        static kAXTrustedCheckOptionPrompt: *const c_void;
+        fn AXIsProcessTrustedWithOptions(options: *const c_void) -> bool;
+    }
+    #[link(name = "CoreFoundation", kind = "framework")]
+    unsafe extern "C" {
+        static kCFBooleanTrue: *const c_void;
+        static kCFTypeDictionaryKeyCallBacks: u8;
+        static kCFTypeDictionaryValueCallBacks: u8;
+        fn CFDictionaryCreate(alloc: *const c_void, keys: *const *const c_void, values: *const *const c_void, n: isize,
+                              kcb: *const c_void, vcb: *const c_void) -> *const c_void;
+        fn CFRelease(cf: *const c_void);
+    }
+    unsafe {
+        let keys = [kAXTrustedCheckOptionPrompt];
+        let values = [kCFBooleanTrue];
+        let dict = CFDictionaryCreate(
+            std::ptr::null(), keys.as_ptr(), values.as_ptr(), 1,
+            &raw const kCFTypeDictionaryKeyCallBacks as *const c_void, &raw const kCFTypeDictionaryValueCallBacks as *const c_void,
+        );
+        let ok = AXIsProcessTrustedWithOptions(dict);
+        if !dict.is_null() {
+            CFRelease(dict);
+        }
+        ok
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn request_accessibility(_reset: bool) -> bool {
+    true
+}
