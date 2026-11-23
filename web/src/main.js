@@ -253,13 +253,13 @@ function initThree() {
       let ring = 0;
       if (wave > 0) {
         const d = Math.hypot((k % 5) - 2, Math.floor(k / 5) - 1);
-        hsl.setHSL((((d * 0.24 + (k % 5) * 0.05 - t * 0.3 + lp * 0.8) % 1) + 1) % 1, 0.9, 0.55);
+        hsl.setHSL((((d * 0.24 + (k % 5) * 0.05 - t * 0.3 + lp * 0.8) % 1) + 1) % 1, 0.78, 0.52);
         c.lerp(hsl, wave);
         ring = Math.max(0, Math.sin(d * 1.6 - t * 4.2)) ** 3;
       }
       const press = Math.max(flash[k], hover === k ? 0.6 : 0, Math.sin(proFlip[k] * Math.PI));
       const inset = press * 7;
-      const f = 0.78 + press * 0.22 + ring * 0.2;
+      const f = 0.72 + press * 0.22 + ring * 0.08 - wave * 0.06;
       sg.fillStyle = `rgb(${Math.min(255, c.r * 255 * f)},${Math.min(255, c.g * 255 * f)},${Math.min(255, c.b * 255 * f)})`;
       sg.beginPath(); sg.roundRect(x + inset, y + inset, TW - 2 * inset, TH - 2 * inset, 28); sg.fill();
       const gr = sg.createLinearGradient(0, y, 0, y + TH);
@@ -436,13 +436,17 @@ function initThree() {
     if (proCtr) { proRoot.scale.setScalar(MM * Math.max(sPro, 0.0001)); proRoot.position.copy(proCtr).multiplyScalar(sPro); }
     const isPro = m > 0.5;
 
-    // explode 0.30 → 0.52, hold, reassemble 0.70 → 0.84
-    const ex = smooth(0.3, 0.52, p) * (1 - smooth(0.7, 0.84, p));
+    // explode 0.30 → 0.52, hold, reassemble 0.70 → 0.84 (MX: the light phase happens exploded, with the beams)
+    // Pro: opens only for "Por dentro" and is whole again before the colour phase
+    const exMx = smooth(0.3, 0.52, p) * (1 - smooth(0.7, 0.84, p));
+    const exPro = smooth(0.3, 0.39, p) * (1 - smooth(0.45, 0.52, p));
+    const ex = isPro ? exPro : exMx;
     state.explode = ex;
     // Pro: the layers lift off the back along the panel's normal, the foot drops, the pen slides out
-    pro.board.position.z = ex * 14; pro.pcb.position.z = ex * 32; pro.glass.position.z = ex * 50; pro.bezel.position.z = ex * 76;
-    pro.pen.position.x = -4 + ex * 95;
-    pro.foot.position.z = -ex * 26; pro.foot.position.y = ex * 18;
+    const exp = exPro;
+    pro.board.position.z = exp * 10; pro.pcb.position.z = exp * 22; pro.glass.position.z = exp * 34; pro.bezel.position.z = exp * 50;
+    pro.pen.position.x = -4 + exp * 95;
+    pro.foot.position.z = -exp * 26; pro.foot.position.y = exp * 18;
     layers.caps.position.z = ex * 62;
     layers.cover.position.z = ex * 42;
     layers.plate.position.z = ex * 25;
@@ -455,6 +459,9 @@ function initThree() {
     // mouse follow
     state.mx = lerp(state.mx, state.tmx, 0.06); state.my = lerp(state.my, state.tmy, 0.06);
     let [yaw, pitch, dist, ox, oy] = camAt(p);
+    dist *= 1 + m * 0.12 + exPro * m * 0.18;   // the Pro is wider: step back a little, more when it opens
+    ox *= 1 + exPro * m * 0.25;
+    oy -= m * 0.14 * (1 - smooth(0.08, 0.18, p));   // the Pro stands taller: keep it under the hero text
     if (stage.clientWidth < 900) { ox = 0; oy = p < 0.1 ? -0.75 : 0.22; dist *= 1.45; }
     const idle = reduceMotion ? 0 : Math.sin(t * 0.5) * 0.04;
     const spin = Math.sin(Math.PI * m) * 0.9 * (model === 'pro' ? 1 : -1);
@@ -481,8 +488,9 @@ function initThree() {
 
     // LEDs: profile colours + breathing, rainbow wave while exploded, hover/press flashes
     const wave = smooth(0.48, 0.56, p) * (1 - smooth(0.68, 0.74, p));
-    bloom.strength = 0.55 + wave * 0.85;
-    bloom.threshold = 0.92 - wave * 0.25;
+    // the Pro's screen is already bright: much less bloom than the MX's LEDs
+    bloom.strength = lerp(0.55 + wave * 0.85, 0.16 + wave * 0.14, m);
+    bloom.threshold = lerp(0.92 - wave * 0.25, 0.95 - wave * 0.05, m);
     scene.environmentIntensity = 0.28 * (1 - wave * 0.7);
     key.intensity = 1.5 * (1 - wave * 0.75);
     // light phase pattern: a colour ripple from the centre key with travelling bright rings
@@ -503,10 +511,10 @@ function initThree() {
       const breathe = 0.75 + 0.25 * Math.sin(t * 1.6 + k * 0.35);
       const I = breathe + hov * 0.8 + state.flash[k] * 1.6 + wave * (0.5 + ring * 1.4);
       leds[k].material.emissive.copy(col); leds[k].material.emissiveIntensity = 2 + I * 2;
-      glows[k].material.color.copy(col).multiplyScalar(0.55 * I * (1 - ex * 0.85));
-      beams[k].material.color.copy(col); beams[k].material.opacity = wave * (0.18 + ring * 0.5) * ex;
+      glows[k].material.color.copy(col).multiplyScalar(0.55 * I * (1 - exMx * 0.85));
+      beams[k].material.color.copy(col); beams[k].material.opacity = wave * (0.18 + ring * 0.5) * exMx;
       flip[k] = Math.max(0, flip[k] - 0.05);
-      if (capMats[k]) { capMats[k].emissive.copy(col); capMats[k].emissiveIntensity = (0.26 + 0.12 * I) * (1 - ex * 0.6) + wave * (0.12 + ring * 0.3) + state.flash[k] * 0.25 + hov * 0.12; }
+      if (capMats[k]) { capMats[k].emissive.copy(col); capMats[k].emissiveIntensity = (0.26 + 0.12 * I) * (1 - exMx * 0.6) + wave * (0.12 + ring * 0.3) + state.flash[k] * 0.25 + hov * 0.12; }
       if (caps[k]) caps[k].position.z = lerp(caps[k].position.z, CAP_Z - (hov ? 2.2 : 0) - state.flash[k] * 1.2 - Math.sin(flip[k] * Math.PI) * 1.4, 0.25);
     }
 
