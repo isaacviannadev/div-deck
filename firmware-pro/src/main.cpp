@@ -39,13 +39,18 @@
 #define DIVDECK_VERSION "dev"
 #endif
 
-#define PIN_SCK      12
-#define PIN_MOSI     11
-#define PIN_MISO     13
+// One wire per ESP32 pin (jumper wires, no Y-splices): the touch controller gets its own SPI bus.
+// ESP32-S3 SuperMini (9 pins per side: 5V GND 3V3 13 12 11 10 9 8 / TX RX 1 2 3 4 5 6 7).
+#define PIN_SCK      12   // LCD SCK
+#define PIN_MOSI     11   // LCD SDI
 #define PIN_LCD_CS   10
 #define PIN_LCD_DC    9
-#define PIN_TOUCH_CS  3
-#define PIN_BL       15
+#define PIN_LCD_RST   8
+#define PIN_BL        7   // LED (backlight PWM)
+#define PIN_TOUCH_CS  3   // T_CS
+#define PIN_T_CLK     4   // T_CLK
+#define PIN_T_DIN     5   // T_DIN
+#define PIN_T_DO      6   // T_DO
 #define PIN_RGB      48
 
 // If the colours come out inverted or red/blue swapped, flip these (same switches as the Sentinela test).
@@ -62,20 +67,20 @@ public:
     { auto c = _bus.config();
       c.spi_host = SPI2_HOST; c.spi_mode = 0;
       c.freq_write = 40000000; c.freq_read = 16000000;
-      c.pin_sclk = PIN_SCK; c.pin_mosi = PIN_MOSI; c.pin_miso = PIN_MISO; c.pin_dc = PIN_LCD_DC;
+      c.pin_sclk = PIN_SCK; c.pin_mosi = PIN_MOSI; c.pin_miso = -1; c.pin_dc = PIN_LCD_DC;
       _bus.config(c); _panel.setBus(&_bus); }
     { auto c = _panel.config();
-      c.pin_cs = PIN_LCD_CS; c.pin_rst = -1; c.pin_busy = -1;
+      c.pin_cs = PIN_LCD_CS; c.pin_rst = PIN_LCD_RST; c.pin_busy = -1;
       c.panel_width = 320; c.panel_height = 480;
-      c.readable = false; c.bus_shared = true;
+      c.readable = false; c.bus_shared = false;
       c.invert = INVERT_COLOURS; c.rgb_order = SWAP_RGB;
       _panel.config(c); }
     { auto c = _light.config();
       c.pin_bl = PIN_BL; c.invert = false; c.freq = 12000; c.pwm_channel = 7;
       _light.config(c); _panel.setLight(&_light); }
     { auto c = _touch.config();
-      c.spi_host = SPI2_HOST; c.freq = 1000000; c.bus_shared = true;
-      c.pin_sclk = PIN_SCK; c.pin_mosi = PIN_MOSI; c.pin_miso = PIN_MISO;
+      c.spi_host = SPI3_HOST; c.freq = 1000000; c.bus_shared = false;
+      c.pin_sclk = PIN_T_CLK; c.pin_mosi = PIN_T_DIN; c.pin_miso = PIN_T_DO;
       c.pin_cs = PIN_TOUCH_CS; c.pin_int = -1;
       c.x_min = 300; c.x_max = 3900; c.y_min = 200; c.y_max = 3700;
       c.offset_rotation = 0;
