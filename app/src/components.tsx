@@ -125,6 +125,30 @@ export function Deck({ model = "mx", profile, profiles, selected, pressed, press
 
 export const SWATCHES = ["0a84ff", "38d6ff", "30d158", "ffd60a", "ff9f0a", "ff453a", "ff375f", "bf5af2", "5e5ce6", "f5f5f7"];
 
+/** Is the action filled in enough to do something? (the "Configurar" step can't be left half done) */
+function actionReady(a: Action): boolean {
+  switch (a.type) {
+    case "none": return true;
+    case "openApp": return !!a.path;
+    case "shortcut": return !!a.key;
+    case "openUrl": return a.url.trim().length > 3;
+    case "typeText": return a.text.length > 0 || !!a.submit;
+    case "shell": return a.command.trim().length > 0;
+    case "media": case "switchProfile": case "wait": return true;
+    case "sequence": return a.steps.length > 0 && a.steps.every(actionReady);
+  }
+}
+
+type StepId = "type" | "details" | "look" | "done";
+const STEPS: { id: StepId; title: string; optional?: boolean }[] = [
+  { id: "type", title: "Ação" },
+  { id: "details", title: "Configurar" },
+  { id: "look", title: "Aparência", optional: true },
+  { id: "done", title: "Resumo" },
+];
+
+/** Key inspector as a short wizard: Ação → Configurar → Aparência → Resumo. A key that is already
+ * set up opens on the summary; every step can be revisited from there or from the step bar. */
 export function KeyEditor({ model = "mx", index, value, profiles, pressColor, onChange, onPreviewColor, onTest }: {
   model?: DeckModel; index: number; value: KeyConfig; profiles: Profile[]; pressColor: string;
   onChange: (k: KeyConfig) => void; onPreviewColor: (c: string) => void; onTest: () => void;
@@ -134,74 +158,145 @@ export function KeyEditor({ model = "mx", index, value, profiles, pressColor, on
   const autoLabel = (old: Action) => !value.label || value.label === actionSummary(old, profiles) || (old.type === "openApp" && value.label === old.name) || (old.type === "media" && MEDIA.some((m) => m.label === value.label));
   const row = Math.floor(index / COLS) + 1, col = (index % COLS) + 1;
   const empty = a.type === "none";
+  const ready = actionReady(a);
+  const [step, setStep] = useState<StepId>(empty ? "type" : "done");
+  const at = STEPS.findIndex((x) => x.id === step);
+  const skipDetails = empty;
+  const go = (id: StepId) => setStep(id === "details" && skipDetails ? "look" : id);
+  const next = () => {
+    const n = STEPS[at + 1]?.id;
+    if (n) go(n);
+  };
+  const back = () => {
+    let p = STEPS[at - 1]?.id;
+    if (p === "details" && skipDetails) p = "type";
+    if (p) setStep(p);
+  };
+  const typeLabel = ACTION_TYPES.find((t) => t.type === a.type)?.label;
 
   return (
-    <div className="inspector">
-      <div className="preview">
+    <div className="inspector wizard">
+      <div className="preview compact">
         <div className={`key big ${model === "pro" ? "pro" : ""} ${empty ? "empty" : ""}`} style={{ ["--led" as string]: `#${value.color}` }}>
           <span className="led" />
-          <span className="key-glyph">
-            <KeyGlyph action={a} size={34} />
-          </span>
+          <span className="key-glyph"><KeyGlyph action={a} size={28} /></span>
           <span className="key-label">{value.label || (empty ? "" : actionSummary(a, profiles))}</span>
         </div>
         <div className="preview-meta">Tecla {index + 1} · linha {row}, coluna {col}</div>
       </div>
 
-      <div className="group">
-        <label className="row">
-          <span>Nome</span>
-          <input className="row-input" value={value.label} placeholder="Sem nome" maxLength={14}
-            onChange={(e) => onChange({ ...value, label: e.target.value })} />
-        </label>
-        <div className="row">
-          <span>Ação</span>
-          <span className="row-value">{actionSummary(a, profiles)}</span>
-        </div>
+      <ol className="stepper">
+        {STEPS.map((x, i) => {
+          const disabled = x.id === "details" && skipDetails;
+          const doneMark = i < at || (x.id === "done" && ready && !empty);
+          return (
+            <li key={x.id}>
+              <button className={`stp ${step === x.id ? "on" : ""} ${doneMark ? "done" : ""}`} disabled={disabled} onClick={() => go(x.id)}>
+                <span className="stp-n">{i + 1}</span>
+                <span className="stp-t">{x.title}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+
+      <div className="step-body">
+        {step === "type" && (
+          <>
+            <p className="step-lead">O que esta tecla faz?</p>
+            <div className="types">
+              {ACTION_TYPES.map((t) => (
+                <button key={t.type} className={`type ${a.type === t.type ? "on" : ""}`}
+                  onClick={() => {
+                    if (a.type !== t.type) setAction(defaultAction(t.type, profiles), autoLabel(a) ? "" : undefined);
+                    setStep(t.type === "none" ? "done" : "details");
+                  }}>
+                  <span className="type-icon"><Icon name={t.icon} size={16} /></span>
+                  <span>{t.label}</span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {step === "details" && !empty && (
+          <>
+            <p className="step-lead">{typeLabel}{a.type === "sequence" ? ": os passos correm por ordem" : ""}</p>
+            <div className="fields">
+              <ActionFields a={a} profiles={profiles} autoLabel={autoLabel} onChange={setAction} />
+            </div>
+            {!ready && <p className="hint warn">Falta preencher {a.type === "sequence" ? "pelo menos um passo completo" : "este passo"} para a tecla funcionar.</p>}
+          </>
+        )}
+
+        {step === "look" && (
+          <>
+            <p className="step-lead">Como a tecla aparece {model === "pro" ? "na tela" : "no deck"} <small>(opcional)</small></p>
+            <div className="group">
+              <label className="row">
+                <span>Nome</span>
+                <input className="row-input" value={value.label} placeholder={empty ? "Sem nome" : actionSummary(a, profiles)} maxLength={14}
+                  onChange={(e) => onChange({ ...value, label: e.target.value })} />
+              </label>
+            </div>
+            <div className="group-title">{model === "pro" ? "Cor" : "Luz"}</div>
+            <div className="group pad">
+              <div className="swatches">
+                {SWATCHES.map((c) => (
+                  <button key={c} className={`swatch ${value.color === c ? "on" : ""}`} style={{ background: `#${c}` }}
+                    onClick={() => onChange({ ...value, color: c })} aria-label={`#${c}`} />
+                ))}
+                <label className="swatch custom" title="Outra cor">
+                  <input type="color" value={`#${value.color}`}
+                    onInput={(e) => onPreviewColor((e.target as HTMLInputElement).value.slice(1))}
+                    onChange={(e) => onChange({ ...value, color: e.target.value.slice(1) })} />
+                </label>
+              </div>
+              <div className="led-meta"><span>#{value.color}</span><span>{model === "pro" ? "Ao tocar" : "Ao apertar"} <i style={{ background: `#${pressColor}` }} /> #{pressColor}</span></div>
+            </div>
+          </>
+        )}
+
+        {step === "done" && (
+          <>
+            <p className="step-lead">{empty ? "Tecla vazia" : ready ? "Tudo pronto" : "Quase lá: falta configurar a ação"}</p>
+            <div className="group summary">
+              <button className="row link" onClick={() => setStep("type")}>
+                <span>Ação</span><span className="row-value">{typeLabel}</span><span className="chev">›</span>
+              </button>
+              {!empty && (
+                <button className="row link" onClick={() => setStep("details")}>
+                  <span>Faz</span><span className={`row-value ${ready ? "" : "warn"}`}>{actionSummary(a, profiles)}</span><span className="chev">›</span>
+                </button>
+              )}
+              <button className="row link" onClick={() => setStep("look")}>
+                <span>Nome</span><span className="row-value">{value.label || "—"}</span><span className="chev">›</span>
+              </button>
+              <button className="row link" onClick={() => setStep("look")}>
+                <span>{model === "pro" ? "Cor" : "Luz"}</span>
+                <span className="row-value"><i className="dot" style={{ background: `#${value.color}` }} /> #{value.color}</span><span className="chev">›</span>
+              </button>
+            </div>
+            <div className="summary-actions">
+              <button className="btn" onClick={onTest} disabled={empty || !ready}><Icon name="bolt" size={14} /> Testar agora</button>
+              <button className="btn plain danger" onClick={() => { onChange({ label: "", color: "1c1f26", action: { type: "none" } }); setStep("type"); }}>Limpar tecla</button>
+            </div>
+          </>
+        )}
       </div>
 
-      <div className="group-title">Tipo de ação</div>
-      <div className="group pad">
-        <div className="types">
-          {ACTION_TYPES.map((t) => (
-            <button key={t.type} className={`type ${a.type === t.type ? "on" : ""}`}
-              onClick={() => a.type !== t.type && setAction(defaultAction(t.type, profiles), autoLabel(a) ? "" : undefined)}>
-              <span className="type-icon"><Icon name={t.icon} size={16} /></span>
-              <span>{t.label}</span>
+      {step !== "done" && (
+        <div className="wizard-foot">
+          <button className="btn plain" onClick={back} disabled={at === 0}>Voltar</button>
+          <span className="grow" />
+          {STEPS[at].optional && <button className="btn plain" onClick={next}>Pular</button>}
+          {step !== "type" && (
+            <button className="btn primary" disabled={step === "details" && !ready} onClick={next}>
+              {STEPS[at + 1]?.id === "done" ? "Concluir" : "Próximo"}
             </button>
-          ))}
+          )}
         </div>
-      </div>
-
-      {a.type !== "none" && (
-        <>
-          <div className="group-title">{ACTION_TYPES.find((t) => t.type === a.type)?.label}</div>
-          <div className="group pad fields">
-            <ActionFields a={a} profiles={profiles} autoLabel={autoLabel} onChange={setAction} />
-          </div>
-        </>
       )}
-
-      <div className="group-title">{model === "pro" ? "Cor" : "Luz"}</div>
-      <div className="group pad">
-        <div className="swatches">
-          {SWATCHES.map((c) => (
-            <button key={c} className={`swatch ${value.color === c ? "on" : ""}`} style={{ background: `#${c}` }}
-              onClick={() => onChange({ ...value, color: c })} aria-label={`#${c}`} />
-          ))}
-          <label className="swatch custom" title="Outra cor">
-            <input type="color" value={`#${value.color}`}
-              onInput={(e) => onPreviewColor((e.target as HTMLInputElement).value.slice(1))}
-              onChange={(e) => onChange({ ...value, color: e.target.value.slice(1) })} />
-          </label>
-        </div>
-        <div className="led-meta"><span>#{value.color}</span><span>{model === "pro" ? "Ao tocar" : "Ao apertar"} <i style={{ background: `#${pressColor}` }} /> #{pressColor}</span></div>
-      </div>
-
-      <div className="inspector-foot">
-        <button className="btn" onClick={onTest} disabled={empty}><Icon name="bolt" size={14} /> Testar</button>
-        <button className="btn plain danger" onClick={() => onChange({ label: "", color: "1c1f26", action: { type: "none" } })}>Limpar tecla</button>
-      </div>
     </div>
   );
 }
