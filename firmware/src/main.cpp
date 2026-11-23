@@ -3,7 +3,7 @@
 // Talks to the macOS companion app over USB serial with a line-based text protocol:
 //
 //   device -> host
-//     HELLO DIVDECK <version> KEYS=15 LEDS=15     on boot and in reply to "HELLO"
+//     HELLO DIVDECK <version> KEYS=15 LEDS=15 MODEL=MX ID=<chip>   on boot and in reply to "HELLO"
 //     D <k>                                       key k pressed   (k = 0..14, row-major, 0 = top-left)
 //     U <k>                                       key k released
 //     PONG                                        reply to PING
@@ -137,7 +137,8 @@ static bool parseHex(const char *s, uint32_t &out) {
 }
 
 static void hello() {
-  Serial.printf("HELLO DIVDECK %s KEYS=%u LEDS=%u\n", DIVDECK_VERSION, KEYS, LED_COUNT);
+  // MODEL + ID let the app tell several decks apart (DIV Deck app 0.2+)
+  Serial.printf("HELLO DIVDECK %s KEYS=%u LEDS=%u MODEL=MX ID=%012llx\n", DIVDECK_VERSION, KEYS, LED_COUNT, ESP.getEfuseMac());
 }
 
 static void handleLine(char *line) {

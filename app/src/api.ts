@@ -36,12 +36,29 @@ export interface Config {
   autoSwitch: boolean;
   brightness: number;
   pressColor: string;
+  decks?: DeckSettings[];
 }
 
-export interface DeckStatus {
+export type DeckModel = "mx" | "pro";
+
+/** Saved settings of a deck (the backend registers every deck the first time it connects). */
+export interface DeckSettings {
+  id: string;
+  name: string;
+  model: DeckModel;
+  /** Profile shown when no app-linked profile applies. */
+  profile: string;
+  followApp: boolean;
+  /** Pro: screen rotated 180°. */
+  flipped: boolean;
+}
+
+export interface DeckInfo extends DeckSettings {
   connected: boolean;
   port: string | null;
   firmware: string | null;
+  /** Profile on the deck right now. */
+  active: string;
 }
 
 export interface AppInfo {
@@ -53,11 +70,12 @@ export interface AppInfo {
 
 export interface AppStateDto {
   config: Config;
-  activeProfile: string;
-  status: DeckStatus;
+  decks: DeckInfo[];
   frontApp: string | null;
   accessibility: boolean;
 }
+
+export const modelName = (m: DeckModel) => (m === "pro" ? "DIV Deck Pro" : "DIV Deck");
 
 export const KEYS = 15;
 export const COLS = 5;
@@ -85,19 +103,20 @@ function on<T>(event: string, cb: (payload: T) => void): Promise<Unlisten> {
 export const api = {
   getState: () => call<AppStateDto>("get_state"),
   saveConfig: (config: Config) => call<void>("save_config", { config }),
-  setProfile: (id: string) => call<void>("set_profile", { id }),
+  updateDeck: (deck: DeckSettings) => call<void>("update_deck", { deck }),
+  forgetDeck: (id: string) => call<void>("forget_deck", { id }),
+  setProfile: (deck: string | null, id: string) => call<void>("set_profile", { deck, id }),
   testAction: (action: Action) => call<void>("test_action", { action }),
-  previewLed: (key: number, color: string) => call<void>("preview_led", { key, color }),
+  previewLed: (deck: string, key: number, color: string) => call<void>("preview_led", { deck, key, color }),
   previewBrightness: (value: number) => call<void>("preview_brightness", { value }),
-  saveToDevice: () => call<void>("save_to_device"),
+  saveToDevice: (deck: string) => call<void>("save_to_device", { deck }),
   listApps: () => call<AppInfo[]>("list_apps"),
   appIcon: (icns: string) => call<string | null>("app_icon", { icns }),
   accessibilityStatus: () => call<boolean>("accessibility_status"),
   openAccessibilitySettings: () => call<void>("open_accessibility_settings"),
 
-  onStatus: (cb: (s: DeckStatus) => void) => on("deck://status", cb),
-  onKey: (cb: (e: { key: number; down: boolean }) => void) => on("deck://key", cb),
-  onProfile: (cb: (id: string) => void) => on("deck://profile", cb),
+  onDecks: (cb: (d: DeckInfo[]) => void) => on("deck://decks", cb),
+  onKey: (cb: (e: { deck: string; key: number; down: boolean }) => void) => on("deck://key", cb),
   onFrontApp: (cb: (bundleId: string | null) => void) => on("deck://front-app", cb),
 
   async autostart(enable?: boolean): Promise<boolean> {
@@ -145,6 +164,13 @@ const mock = (() => {
   const emit = (ev: string, p: unknown) => listeners.get(ev)?.forEach((cb) => cb(p));
   let config: Config = structuredClone(presets) as Config;
   let auto = false;
+  let decks: DeckInfo[] = [
+    { id: "port-cu-usbserial-0001", name: "DIV Deck", model: "mx", profile: config.baseProfile, followApp: true, flipped: false,
+      connected: true, port: "/dev/cu.usbserial-0001", firmware: "1.0.0", active: config.baseProfile },
+    { id: "pro-30edab12cd34", name: "DIV Deck Pro", model: "pro", profile: config.baseProfile, followApp: false, flipped: false,
+      connected: true, port: "/dev/cu.usbmodem101", firmware: "0.2.0", active: config.baseProfile },
+  ];
+  const pushDecks = () => emit("deck://decks", structuredClone(decks));
   const ids: Record<string, string> = {
     "Visual Studio Code": "com.microsoft.VSCode", Cursor: "com.todesktop.230313mzl4w4u92", Figma: "com.figma.Desktop",
     Discord: "com.hnc.Discord", Steam: "com.valvesoftware.steam", ChatGPT: "com.openai.chat", Claude: "com.anthropic.claudefordesktop",
@@ -163,8 +189,7 @@ const mock = (() => {
         case "get_state":
           return {
             config: structuredClone(config),
-            activeProfile: config.baseProfile,
-            status: { connected: true, port: "/dev/cu.usbserial-0001", firmware: "1.0.0" },
+            decks: structuredClone(decks),
             frontApp: "com.apple.Safari",
             accessibility: true,
           } satisfies AppStateDto;
@@ -172,13 +197,24 @@ const mock = (() => {
           config = structuredClone(args!.config as Config);
           return;
         case "set_profile":
-          emit("deck://profile", args!.id);
+          decks = decks.map((d) => (d.id === args!.deck ? { ...d, profile: args!.id as string, active: args!.id as string } : d));
+          pushDecks();
+          return;
+        case "update_deck": {
+          const u = args!.deck as DeckSettings;
+          decks = decks.map((d) => (d.id === u.id ? { ...d, ...u } : d));
+          pushDecks();
+          return;
+        }
+        case "forget_deck":
+          decks = decks.filter((d) => d.id !== args!.id || d.connected);
+          pushDecks();
           return;
         case "test_action": {
           const k = config.profiles[0].keys.findIndex((x) => JSON.stringify(x.action) === JSON.stringify(args!.action));
           if (k >= 0) {
-            emit("deck://key", { key: k, down: true });
-            setTimeout(() => emit("deck://key", { key: k, down: false }), 180);
+            emit("deck://key", { deck: decks[0].id, key: k, down: true });
+            setTimeout(() => emit("deck://key", { deck: decks[0].id, key: k, down: false }), 180);
           }
           return;
         }

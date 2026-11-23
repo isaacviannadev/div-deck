@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, checkForUpdate, isTauri, isWindows, lockedApps, presetOwner, type UpdateInfo, type AppStateDto, type Config, type DeckStatus, type KeyConfig, type Profile } from "./api";
+import { api, checkForUpdate, isTauri, isWindows, lockedApps, presetOwner, type UpdateInfo, type AppStateDto, type Config, type DeckInfo, type KeyConfig, type Profile, modelName } from "./api";
 import { AppPicker, Deck, KeyEditor } from "./components";
 import { AppIcon, Icon, Toggle, appName, useApps } from "./ui";
 import "./App.css";
@@ -21,8 +21,13 @@ function Main({ initial }: { initial: AppStateDto }) {
   const [config, setConfig] = useState<Config>(initial.config);
   /** Last config written to disk / the deck. Profile edits stay local until "Salvar". */
   const [saved, setSaved] = useState<Config>(initial.config);
-  const [active, setActive] = useState(initial.activeProfile);
-  const [status, setStatus] = useState<DeckStatus>(initial.status);
+  const [decks, setDecks] = useState<DeckInfo[]>(initial.decks);
+  /** Deck being configured (LED previews, "Gravar no deck", profile choice go to it). */
+  const [deckId, setDeckId] = useState<string | null>(initial.decks[0]?.id ?? null);
+  const deck = decks.find((d) => d.id === deckId) ?? decks[0] ?? null;
+  /** Profile open in the editor. Follows what the selected deck shows. */
+  const [active, setActive] = useState(initial.decks[0]?.active ?? initial.config.baseProfile);
+  const deckRef = useRef(deck); deckRef.current = deck;
   const [frontApp, setFrontApp] = useState(initial.frontApp);
   const [axOk, setAxOk] = useState(initial.accessibility);
   const [selected, setSelected] = useState(0);
@@ -34,10 +39,24 @@ function Main({ initial }: { initial: AppStateDto }) {
   // ---- backend events
   useEffect(() => {
     const subs = [
-      api.onStatus(setStatus),
-      api.onProfile(setActive),
+      api.onDecks((list) => {
+        setDecks((old) => {
+          const cur = deckRef.current;
+          const now = list.find((d) => d.id === cur?.id) ?? list[0];
+          const before = old.find((d) => d.id === now?.id);
+          // the deck on screen switched profile (focus change or a key): follow it in the editor
+          if (now && (!before || before.active !== now.active || !cur || cur.id !== now.id)) setActive(now.active);
+          return list;
+        });
+        if (!deckRef.current && list[0]) setDeckId(list[0].id);
+      }),
       api.onFrontApp(setFrontApp),
-      api.onKey(({ key, down }) => {
+      api.onKey(({ deck: d, key, down }) => {
+        if (d !== deckRef.current?.id) {
+          if (!down) return;
+          setDeckId(d); // pressing a key on another deck selects that deck
+          setPressed(new Set());
+        }
         setPressed((p) => { const n = new Set(p); if (down) n.add(key); else n.delete(key); return n; });
         if (down) setSelected(key);
       }),
@@ -110,7 +129,7 @@ function Main({ initial }: { initial: AppStateDto }) {
     await api.saveConfig(next);
     setSaved(next);
     lastEdit.current = { tag: "", at: 0 };
-    if (next.profiles.some((p) => p.id === active)) api.setProfile(active);
+    if (next.profiles.some((p) => p.id === active)) api.setProfile(deckRef.current?.id ?? null, active);
     say("Alterações salvas");
   };
   const discard = () => edit(() => saved.profiles);
@@ -153,9 +172,22 @@ function Main({ initial }: { initial: AppStateDto }) {
     setConfig((c) => ({ ...c, baseProfile: id }));
     if (savedRef.current.profiles.some((p) => p.id === id)) {
       setSaved((s) => ({ ...s, baseProfile: id }));
-      api.setProfile(id);
+      api.setProfile(deckRef.current?.id ?? null, id);
     }
   };
+  const selectDeck = (d: DeckInfo) => {
+    setDeckId(d.id);
+    setPressed(new Set());
+    setActive(d.active);
+  };
+  const changeDeck = (patch: Partial<DeckInfo>) => {
+    if (!deck) return;
+    const next = { ...deck, ...patch };
+    setDecks((ds) => ds.map((d) => (d.id === deck.id ? next : d)));
+    api.updateDeck({ id: next.id, name: next.name, model: next.model, profile: next.profile, followApp: next.followApp, flipped: next.flipped });
+  };
+  const [deckName, setDeckName] = useState(deck?.name ?? "");
+  useEffect(() => setDeckName(deck?.name ?? ""), [deck?.id, deck?.name]);
   const addProfile = () => {
     const p: Profile = { id: uid(), name: `Perfil ${config.profiles.length + 1}`, apps: [], keys: Array.from({ length: 15 }, () => ({ label: "", color: "1c1f26", action: { type: "none" } })) };
     edit((ps) => [...ps, p]);
@@ -201,15 +233,42 @@ function Main({ initial }: { initial: AppStateDto }) {
         <div className="side-top" data-tauri-drag-region />
         <div className="brand" data-tauri-drag-region dangerouslySetInnerHTML={{ __html: logoSvg }} />
 
-        <div className="side-section">Dispositivo</div>
-        <div className={`device ${status.connected ? "ok" : ""}`}>
-          <span className="device-icon"><Icon name="usb" size={15} /></span>
-          <div className="device-text">
-            <strong>DIV Deck</strong>
-            <small>{status.connected ? `Conectado · fw ${status.firmware}` : "Procurando…"}</small>
-          </div>
-          <span className="device-dot" />
+        <div className="side-section">{decks.length > 1 ? "Dispositivos" : "Dispositivo"}</div>
+        <div className="devices">
+          {decks.map((d) => (
+            <button key={d.id} className={`device ${d.connected ? "ok" : ""} ${d.id === deck?.id ? "on" : ""}`} onClick={() => selectDeck(d)}>
+              <span className="device-icon"><Icon name={d.model === "pro" ? "screen" : "keys"} size={15} /></span>
+              <span className="device-text">
+                <strong>{d.name}</strong>
+                <small>{d.connected
+                  ? `${d.model === "pro" ? "Pro" : "MX"} · ${config.profiles.find((p) => p.id === d.active)?.name ?? ""}`
+                  : "Desligado"}</small>
+              </span>
+              <span className="device-dot" />
+            </button>
+          ))}
+          {decks.length === 0 && (
+            <div className="device">
+              <span className="device-icon"><Icon name="usb" size={15} /></span>
+              <span className="device-text"><strong>DIV Deck</strong><small>Procurando… ligue o deck no USB</small></span>
+              <span className="device-dot" />
+            </div>
+          )}
         </div>
+        {deck && (
+          <div className="deck-opts">
+            <input className="deck-name" value={deckName} maxLength={32} aria-label="Nome do deck"
+              onChange={(e) => setDeckName(e.target.value)}
+              onBlur={() => deckName.trim() !== deck.name && changeDeck({ name: deckName.trim() || modelName(deck.model) })}
+              onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />
+            <small className="deck-meta">{modelName(deck.model)}{deck.firmware ? ` · firmware ${deck.firmware}` : ""}</small>
+            <Toggle label="Segue o app em foco" checked={deck.followApp} onChange={(v) => changeDeck({ followApp: v })} />
+            {deck.model === "pro" && <Toggle label="Tela invertida (180°)" checked={deck.flipped} onChange={(v) => changeDeck({ flipped: v })} />}
+            {!deck.connected && decks.length > 1 && (
+              <button className="btn plain small danger" onClick={() => { api.forgetDeck(deck.id); setDeckId(null); }}>Remover da lista</button>
+            )}
+          </div>
+        )}
 
         <div className="side-section">
           <span>Perfis</span>
@@ -222,7 +281,9 @@ function Main({ initial }: { initial: AppStateDto }) {
                 ? <AppIcon bundleId={p.apps[0]} size={18} />
                 : <span className="profile-glyph" style={{ background: profileColor(p) }}><Icon name="app" size={11} /></span>}
               <span className="profile-name">{p.name}</span>
-              {p.id === active && status.connected && <span className="live" title="No deck agora" />}
+              {decks.some((d) => d.connected && d.active === p.id) && (
+                <span className="live" title={`Agora em: ${decks.filter((d) => d.connected && d.active === p.id).map((d) => d.name).join(", ")}`} />
+              )}
               {!saved.profiles.some((q) => q.id === p.id) || JSON.stringify(saved.profiles.find((q) => q.id === p.id)) !== JSON.stringify(p)
                 ? <span className="unsaved" title="Alterações não salvas" /> : null}
             </button>
@@ -249,8 +310,8 @@ function Main({ initial }: { initial: AppStateDto }) {
           </div>
           <Toggle label="Trocar pelo app em foco" checked={config.autoSwitch} onChange={(v) => setConfig((c) => ({ ...c, autoSwitch: v }))} />
           <Toggle label="Abrir ao iniciar sessão" checked={autostart} onChange={(v) => api.autostart(v).then(setAutostart)} />
-          <button className="btn wide" disabled={!status.connected} onClick={() => { api.saveToDevice(); say("Cores gravadas no deck"); }}>
-            Gravar cores no deck
+          <button className="btn wide" disabled={!deck?.connected} onClick={() => { if (deck) { api.saveToDevice(deck.id); say(`Gravado em ${deck.name}`); } }}>
+            {deck?.model === "pro" ? "Gravar teclas no deck" : "Gravar cores no deck"}
           </button>
         </div>
       </aside>
@@ -309,8 +370,11 @@ function Main({ initial }: { initial: AppStateDto }) {
         )}
 
         <div className="stage" data-tauri-drag-region>
-          <Deck profile={profile} profiles={config.profiles} selected={selected} pressed={pressed} pressColor={config.pressColor} onSelect={setSelected} />
-          <p className="deck-hint">Clique numa tecla para editar — ou aperte-a no deck</p>
+          <Deck model={deck?.model ?? "mx"} profile={profile} profiles={config.profiles} selected={selected} pressed={pressed} pressColor={config.pressColor} onSelect={setSelected} />
+          <p className="deck-hint">
+            {deck && decks.length > 1 ? `${deck.name} · ` : ""}
+            Clique numa tecla para editar — ou {deck?.model === "pro" ? "toque-a na tela" : "aperte-a no deck"}
+          </p>
         </div>
         {flash && <div className="toast">{flash}</div>}
       </main>
@@ -318,10 +382,10 @@ function Main({ initial }: { initial: AppStateDto }) {
       {/* ------------------------------------------------ inspector */}
       <aside className="panel">
         <div className="panel-top" data-tauri-drag-region />
-        <KeyEditor key={`${profile.id}-${selected}`} index={selected} value={profile.keys[selected]} profiles={config.profiles}
+        <KeyEditor key={`${profile.id}-${selected}`} model={deck?.model ?? "mx"} index={selected} value={profile.keys[selected]} profiles={config.profiles}
           pressColor={config.pressColor}
           onChange={updateKey}
-          onPreviewColor={(c) => api.previewLed(selected, c)}
+          onPreviewColor={(c) => deck && api.previewLed(deck.id, selected, c)}
           onTest={() => api.testAction(profile.keys[selected].action)} />
       </aside>
     </div>

@@ -4,3 +4,6 @@ node_modules/
 
 # updater signing keys never go in the repo
 *.key
+
+# PlatformIO build output
+.pio/

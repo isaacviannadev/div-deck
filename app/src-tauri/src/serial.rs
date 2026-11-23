@@ -1,47 +1,70 @@
-//! USB serial link to the deck. A background thread finds the ESP32, handshakes with
-//! `HELLO`, keeps it in host mode with `PING` every 2 s, forwards key events and writes
-//! queued commands. Unplug/replug is handled by falling back to scanning.
+//! USB serial links to the decks. A scanner thread probes every USB serial port that isn't
+//! already in use, handshakes with `HELLO`, and starts one session thread per deck. Each session
+//! keeps its deck in host mode with `PING` every 2 s, forwards key events and writes queued
+//! commands. Any number of decks (DIV Deck MX and DIV Deck Pro) can be connected at once;
+//! unplug/replug is handled by the scanner picking the port up again.
+//!
+//! HELLO reply from the firmware:
+//!   HELLO DIVDECK <version> KEYS=15 [LEDS=15] [MODEL=MX|PRO] [ID=<chip id>]
+//! Firmware from before v0.2 sends no MODEL/ID: it is treated as an MX and identified by its port.
 
 use serde::Serialize;
 use serialport::{SerialPort, SerialPortType};
 use std::{
+    collections::HashMap,
     io::{ErrorKind, Write},
     sync::{mpsc, Arc, Mutex},
     thread,
     time::{Duration, Instant},
 };
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
 
 #[derive(Clone, Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct DeckStatus {
-    pub connected: bool,
-    pub port: Option<String>,
-    pub firmware: Option<String>,
+pub struct LinkInfo {
+    pub id: String,
+    /// "mx" or "pro"
+    pub model: String,
+    pub port: String,
+    pub firmware: String,
 }
 
-#[derive(Clone, Serialize)]
-pub struct KeyEvent {
-    pub key: u8,
-    pub down: bool,
+struct Link {
+    tx: mpsc::Sender<String>,
+    info: LinkInfo,
 }
 
 #[derive(Default)]
-pub struct Deck {
-    tx: Mutex<Option<mpsc::Sender<String>>>,
-    pub status: Mutex<DeckStatus>,
+pub struct Decks {
+    links: Mutex<HashMap<String, Link>>,
 }
 
-impl Deck {
-    /// Queue a protocol line (without newline). Dropped silently when no deck is connected.
-    pub fn send(&self, line: impl Into<String>) {
-        if let Some(tx) = self.tx.lock().unwrap().as_ref() {
-            let _ = tx.send(line.into());
+impl Decks {
+    /// Queue a protocol line (without newline) for one deck. Dropped when it isn't connected.
+    pub fn send(&self, id: &str, line: impl Into<String>) {
+        if let Some(l) = self.links.lock().unwrap().get(id) {
+            let _ = l.tx.send(line.into());
         }
+    }
+    pub fn broadcast(&self, line: &str) {
+        for l in self.links.lock().unwrap().values() {
+            let _ = l.tx.send(line.to_string());
+        }
+    }
+    pub fn connected(&self) -> Vec<LinkInfo> {
+        let mut v: Vec<LinkInfo> = self.links.lock().unwrap().values().map(|l| l.info.clone()).collect();
+        v.sort_by(|a, b| a.port.cmp(&b.port));
+        v
+    }
+    pub fn info(&self, id: &str) -> Option<LinkInfo> {
+        self.links.lock().unwrap().get(id).map(|l| l.info.clone())
+    }
+    fn busy_ports(&self) -> Vec<String> {
+        self.links.lock().unwrap().values().map(|l| l.info.port.clone()).collect()
     }
 }
 
-/// USB-UART bridges used on ESP32 boards: Silabs CP210x, WCH CH34x, FTDI, Espressif native USB.
+/// USB-UART bridges used on ESP32 boards: Silabs CP210x, WCH CH34x, FTDI, Espressif native USB (S3).
 const KNOWN_VIDS: [u16; 4] = [0x10C4, 0x1A86, 0x0403, 0x303A];
 
 fn candidates() -> Vec<String> {
@@ -97,8 +120,30 @@ impl LineReader {
     }
 }
 
-/// Open a port and wait for the deck's HELLO. Returns the port and the firmware version.
-fn probe(name: &str) -> Option<(Box<dyn SerialPort>, String, LineReader)> {
+/// "HELLO DIVDECK 1.2.0 KEYS=15 MODEL=PRO ID=a1b2c3" -> LinkInfo
+fn parse_hello(rest: &str, port: &str) -> LinkInfo {
+    let mut it = rest.split_whitespace();
+    let firmware = it.next().unwrap_or("?").to_string();
+    let mut model = "mx".to_string();
+    let mut id = String::new();
+    for kv in it {
+        if let Some(v) = kv.strip_prefix("MODEL=") {
+            model = v.to_ascii_lowercase();
+        } else if let Some(v) = kv.strip_prefix("ID=") {
+            id = v.to_ascii_lowercase();
+        }
+    }
+    if id.is_empty() {
+        // old firmware: the USB-serial port name is stable per board (CP210x serial number)
+        id = format!("port-{}", port.rsplit('/').next().unwrap_or(port).replace(['.', ' '], "-"));
+    } else {
+        id = format!("{model}-{id}");
+    }
+    LinkInfo { id, model, port: port.to_string(), firmware }
+}
+
+/// Open a port and wait for the deck's HELLO.
+fn probe(name: &str) -> Option<(Box<dyn SerialPort>, LinkInfo, LineReader)> {
     let mut port = serialport::new(name, 115_200).timeout(Duration::from_millis(50)).open().ok()?;
     // Release the DevKit's auto-reset lines (DTR/RTS). This may reboot the ESP32 once,
     // so allow time for its boot + LED self-test before giving up.
@@ -114,44 +159,50 @@ fn probe(name: &str) -> Option<(Box<dyn SerialPort>, String, LineReader)> {
         }
         for line in reader.poll(port.as_mut()).ok()? {
             if let Some(rest) = line.strip_prefix("HELLO DIVDECK") {
-                let fw = rest.split_whitespace().next().unwrap_or("?").to_string();
-                return Some((port, fw, reader));
+                return Some((port, parse_hello(rest, name), reader));
             }
         }
     }
     None
 }
 
-fn set_status(app: &AppHandle, deck: &Deck, status: DeckStatus) {
-    *deck.status.lock().unwrap() = status.clone();
-    let _ = app.emit("deck://status", status);
-}
-
-pub fn spawn(app: AppHandle, deck: Arc<Deck>) {
+pub fn spawn(app: AppHandle, decks: Arc<Decks>) {
     thread::Builder::new()
-        .name("divdeck-serial".into())
+        .name("divdeck-scan".into())
         .spawn(move || loop {
-            for name in candidates() {
-                let Some((mut port, firmware, mut reader)) = probe(&name) else { continue };
-                session(&app, &deck, &name, port.as_mut(), firmware, &mut reader);
+            let busy = decks.busy_ports();
+            for name in candidates().into_iter().filter(|n| !busy.contains(n)) {
+                let Some((port, info, reader)) = probe(&name) else { continue };
+                if decks.links.lock().unwrap().contains_key(&info.id) {
+                    continue; // same deck seen on two ports (shouldn't happen)
+                }
+                let (app, decks) = (app.clone(), decks.clone());
+                let _ = thread::Builder::new()
+                    .name(format!("divdeck-{}", info.id))
+                    .spawn(move || session(&app, &decks, port, info, reader));
             }
             thread::sleep(Duration::from_millis(1500));
         })
         .expect("spawn serial thread");
 }
 
-fn session(app: &AppHandle, deck: &Deck, name: &str, port: &mut dyn SerialPort, firmware: String, reader: &mut LineReader) {
+fn session(app: &AppHandle, decks: &Decks, mut port: Box<dyn SerialPort>, info: LinkInfo, mut reader: LineReader) {
     let (tx, rx) = mpsc::channel::<String>();
-    *deck.tx.lock().unwrap() = Some(tx);
-    set_status(app, deck, DeckStatus { connected: true, port: Some(name.into()), firmware: Some(firmware) });
-    crate::push_leds(app);
+    let id = info.id.clone();
+    decks.links.lock().unwrap().insert(id.clone(), Link { tx, info: info.clone() });
+    crate::on_deck_connected(app, &info);
 
     let mut last_ping = Instant::now();
     'session: loop {
+        let mut wrote = false;
         while let Ok(line) = rx.try_recv() {
             if port.write_all(format!("{line}\n").as_bytes()).is_err() {
                 break 'session;
             }
+            wrote = true;
+        }
+        if wrote {
+            let _ = port.flush();
         }
         if last_ping.elapsed() >= Duration::from_secs(2) {
             if port.write_all(b"PING\n").is_err() {
@@ -159,14 +210,14 @@ fn session(app: &AppHandle, deck: &Deck, name: &str, port: &mut dyn SerialPort, 
             }
             last_ping = Instant::now();
         }
-        match reader.poll(port) {
+        match reader.poll(port.as_mut()) {
             Ok(lines) => {
                 for line in lines {
                     let mut it = line.split_whitespace();
                     let (Some(kind), Some(k)) = (it.next(), it.next().and_then(|k| k.parse::<u8>().ok())) else { continue };
                     match kind {
-                        "D" => crate::on_key(app, k, true),
-                        "U" => crate::on_key(app, k, false),
+                        "D" => crate::on_key(app, &id, k, true),
+                        "U" => crate::on_key(app, &id, k, false),
                         _ => {}
                     }
                 }
@@ -174,6 +225,18 @@ fn session(app: &AppHandle, deck: &Deck, name: &str, port: &mut dyn SerialPort, 
             Err(_) => break, // unplugged
         }
     }
-    *deck.tx.lock().unwrap() = None;
-    set_status(app, deck, DeckStatus::default());
+    decks.links.lock().unwrap().remove(&id);
+    crate::on_deck_disconnected(app, &id);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_hello;
+    #[test]
+    fn hello_old_and_new() {
+        let a = parse_hello(" 1.0.0 KEYS=15 LEDS=15", "/dev/cu.usbserial-0001");
+        assert_eq!((a.model.as_str(), a.id.as_str(), a.firmware.as_str()), ("mx", "port-cu-usbserial-0001", "1.0.0"));
+        let b = parse_hello(" 0.2.0 KEYS=15 MODEL=PRO ID=A1B2C3", "/dev/cu.usbmodem101");
+        assert_eq!((b.model.as_str(), b.id.as_str()), ("pro", "pro-a1b2c3"));
+    }
 }

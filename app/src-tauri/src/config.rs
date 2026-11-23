@@ -64,6 +64,27 @@ pub struct Profile {
     pub keys: Vec<KeyConfig>,
 }
 
+/// A deck the app has seen at least once. Several can be connected at the same time.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DeckConfig {
+    pub id: String,
+    pub name: String,
+    /// "mx" (mechanical keys + LEDs) or "pro" (4" touchscreen)
+    pub model: String,
+    /// Profile this deck shows when no app-linked profile applies.
+    pub profile: String,
+    /// Follow the app in focus (app-linked profiles) on this deck.
+    #[serde(default = "yes")]
+    pub follow_app: bool,
+    /// Pro only: screen rotated 180°.
+    #[serde(default)]
+    pub flipped: bool,
+}
+fn yes() -> bool {
+    true
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
@@ -77,6 +98,9 @@ pub struct Config {
     /// Built-in presets already merged into this config.
     #[serde(default)]
     pub presets_version: u32,
+    /// Every deck seen so far (connected or not).
+    #[serde(default)]
+    pub decks: Vec<DeckConfig>,
 }
 
 impl Default for Config {
@@ -88,6 +112,7 @@ impl Default for Config {
             brightness: 48,
             press_color: "ffffff".into(),
             presets_version: crate::presets::PRESETS_VERSION,
+            decks: vec![],
         }
     }
 }
@@ -160,6 +185,20 @@ impl Config {
             self.base_profile = self.profiles[0].id.clone();
         }
         self.brightness = self.brightness.min(96);
+        let base = self.base_profile.clone();
+        let ids: Vec<String> = self.profiles.iter().map(|p| p.id.clone()).collect();
+        for d in &mut self.decks {
+            if !ids.contains(&d.profile) {
+                d.profile = base.clone();
+            }
+        }
+    }
+
+    pub fn deck(&self, id: &str) -> Option<&DeckConfig> {
+        self.decks.iter().find(|d| d.id == id)
+    }
+    pub fn deck_mut(&mut self, id: &str) -> Option<&mut DeckConfig> {
+        self.decks.iter_mut().find(|d| d.id == id)
     }
 
     pub fn profile(&self, id: &str) -> Option<&Profile> {

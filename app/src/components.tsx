@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { COLS, isWindows, type Action, type AppInfo, type KeyConfig, type Profile } from "./api";
+import { COLS, isWindows, type Action, type AppInfo, type DeckModel, type KeyConfig, type Profile } from "./api";
 import {
   ACTION_TYPES, AppIcon, Icon, MEDIA, MODS, actionIcon, actionSummary, defaultAction, formatShortcut, keyFromEvent, useApps,
 } from "./ui";
@@ -94,11 +94,11 @@ function KeyGlyph({ action: a, size }: { action: Action; size: number }) {
   return <Icon name={actionIcon(a)} size={Math.round(size * 0.72)} />;
 }
 
-export function Deck({ profile, profiles, selected, pressed, pressColor, onSelect }: {
-  profile: Profile; profiles: Profile[]; selected: number; pressed: Set<number>; pressColor: string; onSelect: (k: number) => void;
+export function Deck({ model = "mx", profile, profiles, selected, pressed, pressColor, onSelect }: {
+  model?: DeckModel; profile: Profile; profiles: Profile[]; selected: number; pressed: Set<number>; pressColor: string; onSelect: (k: number) => void;
 }) {
   return (
-    <div className="deck">
+    <div className={`deck ${model}`}>
       <div className="deck-face" style={{ gridTemplateColumns: `repeat(${COLS}, 1fr)` }}>
         {profile.keys.map((k, i) => {
           const empty = k.action.type === "none";
@@ -125,8 +125,8 @@ export function Deck({ profile, profiles, selected, pressed, pressColor, onSelec
 
 export const SWATCHES = ["0a84ff", "38d6ff", "30d158", "ffd60a", "ff9f0a", "ff453a", "ff375f", "bf5af2", "5e5ce6", "f5f5f7"];
 
-export function KeyEditor({ index, value, profiles, pressColor, onChange, onPreviewColor, onTest }: {
-  index: number; value: KeyConfig; profiles: Profile[]; pressColor: string;
+export function KeyEditor({ model = "mx", index, value, profiles, pressColor, onChange, onPreviewColor, onTest }: {
+  model?: DeckModel; index: number; value: KeyConfig; profiles: Profile[]; pressColor: string;
   onChange: (k: KeyConfig) => void; onPreviewColor: (c: string) => void; onTest: () => void;
 }) {
   const [picking, setPicking] = useState(false);
@@ -229,7 +229,7 @@ export function KeyEditor({ index, value, profiles, pressColor, onChange, onPrev
         </>
       )}
 
-      <div className="group-title">Luz</div>
+      <div className="group-title">{model === "pro" ? "Cor" : "Luz"}</div>
       <div className="group pad">
         <div className="swatches">
           {SWATCHES.map((c) => (
@@ -242,7 +242,7 @@ export function KeyEditor({ index, value, profiles, pressColor, onChange, onPrev
               onChange={(e) => onChange({ ...value, color: e.target.value.slice(1) })} />
           </label>
         </div>
-        <div className="led-meta"><span>#{value.color}</span><span>Ao apertar <i style={{ background: `#${pressColor}` }} /> #{pressColor}</span></div>
+        <div className="led-meta"><span>#{value.color}</span><span>{model === "pro" ? "Ao tocar" : "Ao apertar"} <i style={{ background: `#${pressColor}` }} /> #{pressColor}</span></div>
       </div>
 
       <div className="inspector-foot">
