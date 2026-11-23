@@ -67,9 +67,13 @@ impl Decks {
 /// USB-UART bridges used on ESP32 boards: Silabs CP210x, WCH CH34x, FTDI, Espressif native USB (S3).
 const KNOWN_VIDS: [u16; 4] = [0x10C4, 0x1A86, 0x0403, 0x303A];
 
-fn candidates() -> Vec<String> {
+/// Espressif's own USB (ESP32-S3/C3 native USB-Serial-JTAG): toggling DTR/RTS there resets the chip.
+const ESPRESSIF_VID: u16 = 0x303A;
+
+/// Ports worth probing, with "is native Espressif USB".
+fn candidates() -> Vec<(String, bool)> {
     let Ok(ports) = serialport::available_ports() else { return vec![] };
-    let mut found: Vec<(u8, String)> = ports
+    let mut found: Vec<(u8, String, bool)> = ports
         .into_iter()
         .filter_map(|p| {
             let name = p.port_name;
@@ -78,17 +82,18 @@ fn candidates() -> Vec<String> {
                 return None;
             }
             let usb_like = name.contains("usbserial") || name.contains("SLAB") || name.contains("wchusb") || name.contains("usbmodem");
+            let native = matches!(&p.port_type, SerialPortType::UsbPort(u) if u.vid == ESPRESSIF_VID);
             let rank = match &p.port_type {
                 SerialPortType::UsbPort(u) if KNOWN_VIDS.contains(&u.vid) => 0,
                 SerialPortType::UsbPort(_) => 1,
                 _ if usb_like => 1,
                 _ => return None,
             };
-            Some((rank, name))
+            Some((rank, name, native))
         })
         .collect();
     found.sort();
-    found.into_iter().map(|(_, n)| n).collect()
+    found.into_iter().map(|(_, n, native)| (n, native)).collect()
 }
 
 #[derive(Default)]
@@ -143,12 +148,15 @@ fn parse_hello(rest: &str, port: &str) -> LinkInfo {
 }
 
 /// Open a port and wait for the deck's HELLO.
-fn probe(name: &str) -> Option<(Box<dyn SerialPort>, LinkInfo, LineReader)> {
+fn probe(name: &str, native: bool) -> Option<(Box<dyn SerialPort>, LinkInfo, LineReader)> {
     let mut port = serialport::new(name, 115_200).timeout(Duration::from_millis(50)).open().ok()?;
-    // Release the DevKit's auto-reset lines (DTR/RTS). This may reboot the ESP32 once,
-    // so allow time for its boot + LED self-test before giving up.
-    let _ = port.write_data_terminal_ready(false);
-    let _ = port.write_request_to_send(false);
+    if !native {
+        // Release the DevKit's auto-reset lines (DTR/RTS). This may reboot the ESP32 once,
+        // so allow time for its boot + LED self-test before giving up.
+        // Never on the S3's native USB: there these lines reset the chip and it drops off the bus.
+        let _ = port.write_data_terminal_ready(false);
+        let _ = port.write_request_to_send(false);
+    }
     let mut reader = LineReader::default();
     let deadline = Instant::now() + Duration::from_millis(3500);
     let mut last_hello = Instant::now() - Duration::from_secs(1);
@@ -171,8 +179,8 @@ pub fn spawn(app: AppHandle, decks: Arc<Decks>) {
         .name("divdeck-scan".into())
         .spawn(move || loop {
             let busy = decks.busy_ports();
-            for name in candidates().into_iter().filter(|n| !busy.contains(n)) {
-                let Some((port, info, reader)) = probe(&name) else { continue };
+            for (name, native) in candidates().into_iter().filter(|(n, _)| !busy.contains(n)) {
+                let Some((port, info, reader)) = probe(&name, native) else { continue };
                 if decks.links.lock().unwrap().contains_key(&info.id) {
                     continue; // same deck seen on two ports (shouldn't happen)
                 }
