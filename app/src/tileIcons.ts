@@ -111,7 +111,7 @@ export async function drawKeyIcon(g: CanvasRenderingContext2D, k: KeyConfig, siz
 // 86 x 96 RGB565 big-endian. Same look as the tiles in the app, much nicer than the deck's own fonts.
 
 export const FACE_W = 86, FACE_H = 96;
-const FACE_VERSION = "f1";
+const FACE_VERSION = "f2";
 
 const SANS = '-apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif';
 const SANS_D = '-apple-system, "SF Pro Display", "Segoe UI", system-ui, sans-serif';
@@ -175,10 +175,10 @@ export async function drawFace(g: CanvasRenderingContext2D, k: KeyConfig, profil
   const light = lumOf(base) > 0.72;
   const fg = light ? "#111" : "#fff";
   const label = faceLabel(k, profiles);
-  const cy = label ? 38 : H / 2;
+  const cy = label ? 39 : H / 2;
 
   // picture: app icon / brand / emoji / own image, else the action's symbol
-  const PIC = label ? 46 : 54;
+  const PIC = label ? 44 : 52;
   const c = document.createElement("canvas"); c.width = c.height = PIC * 2;
   const pg = c.getContext("2d")!;
   let drawn = false;
@@ -191,16 +191,16 @@ export async function drawFace(g: CanvasRenderingContext2D, k: KeyConfig, profil
   } else if (a.type === "shortcut" && a.key) {
     const t = formatShortcut(a.mods, a.key);
     g.fillStyle = fg; g.textAlign = "center"; g.textBaseline = "middle";
-    const txt = fitText(g, t, W - 14, [30, 26, 22, 18, 15], 700, SANS_D);
+    const txt = fitText(g, t, W - 14, [24, 21, 18, 15, 13], 700, SANS_D);
     g.fillText(txt, W / 2, cy + 1);
   } else if (a.type === "openApp" && a.name) {
     const words = a.name.split(/\s+/).filter(Boolean);
     const mono = (words.length >= 2 ? words[0][0] + words[1][0] : a.name.slice(0, 2));
     g.fillStyle = fg; g.textAlign = "center"; g.textBaseline = "middle";
-    g.font = `700 30px ${SANS_D}`;
+    g.font = `700 24px ${SANS_D}`;
     g.fillText(mono.charAt(0).toUpperCase() + mono.slice(1), W / 2, cy + 1);
   } else {
-    const s = label ? 34 : 42;
+    const s = label ? 30 : 38;
     const img = await strokeIcon(actionIcon(a), s, fg);
     g.drawImage(img, (W - s) / 2, cy - s / 2, s, s);
   }
@@ -209,8 +209,8 @@ export async function drawFace(g: CanvasRenderingContext2D, k: KeyConfig, profil
     g.fillStyle = light ? "rgba(0,0,0,.82)" : "rgba(255,255,255,.96)";
     g.textAlign = "center"; g.textBaseline = "alphabetic";
     if (!light) { g.shadowColor = "rgba(0,0,0,.35)"; g.shadowBlur = 2; g.shadowOffsetY = 1; }
-    const t = fitText(g, label, W - 10, [13, 12, 11], 600, SANS);
-    g.fillText(t, W / 2, H - 12);
+    const t = fitText(g, label, W - 10, [11, 10.5, 10], 500, SANS);
+    g.fillText(t, W / 2, H - 11);
     g.shadowColor = "transparent";
   }
   return true;

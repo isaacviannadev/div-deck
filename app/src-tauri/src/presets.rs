@@ -3,10 +3,18 @@
 
 use crate::config::{Action, KeyConfig, MediaKey, Profile};
 
-pub const PRESETS_VERSION: u32 = 1;
+pub const PRESETS_VERSION: u32 = 2;
 
 fn k(label: &str, color: &str, action: Action) -> KeyConfig {
     KeyConfig { label: label.into(), color: color.into(), action, icon: None }
+}
+/// Key with an emoji picture.
+fn e(label: &str, color: &str, emoji: &str, action: Action) -> KeyConfig {
+    KeyConfig { icon: Some(serde_json::json!({ "kind": "emoji", "char": emoji })), ..k(label, color, action) }
+}
+/// Key with a brand logo (Simple Icons slug + colour).
+fn b(label: &str, color: &str, slug: &str, title: &str, hex: &str, action: Action) -> KeyConfig {
+    KeyConfig { icon: Some(serde_json::json!({ "kind": "brand", "slug": slug, "title": title, "hex": hex })), ..k(label, color, action) }
 }
 fn sc(mods: &[&str], key: &str) -> Action {
     Action::Shortcut { mods: mods.iter().map(|s| s.to_string()).collect(), key: key.into() }
@@ -34,72 +42,72 @@ fn profile(id: &str, name: &str, apps: &[&str], keys: Vec<KeyConfig>) -> Profile
 /// The 5 media keys used as the bottom row of a few profiles.
 fn media_row(c: &str) -> Vec<KeyConfig> {
     vec![
-        k("Play", c, media(MediaKey::PlayPause)),
         k("Anterior", c, media(MediaKey::Previous)),
+        k("Play", c, media(MediaKey::PlayPause)),
         k("Próxima", c, media(MediaKey::Next)),
-        k("Vol −", c, media(MediaKey::VolumeDown)),
-        k("Vol +", c, media(MediaKey::VolumeUp)),
+        k("Volume −", c, media(MediaKey::VolumeDown)),
+        k("Volume +", c, media(MediaKey::VolumeUp)),
     ]
 }
 
 pub fn all() -> Vec<Profile> {
-    let blue = "3ea6ff";
+    let blue = "0a84ff";
     let mut v = vec![];
 
-    // ---- launcher / base profile
+    // ---- launcher / base profile: your apps on top, quick actions, media at the bottom
     let mut keys = vec![
-        k("VS Code", "3ea6ff", app("Visual Studio Code")),
-        k("Cursor", "e8e8e8", app("Cursor")),
+        k("VS Code", "0a84ff", app("Visual Studio Code")),
+        k("Cursor", "3a3a3c", app("Cursor")),
         k("Figma", "a259ff", app("Figma")),
         k("ChatGPT", "10a37f", app("ChatGPT")),
         k("Claude", "d97757", app("Claude")),
         k("Discord", "5865f2", app("Discord")),
-        k("Steam", "66c0f4", app("Steam")),
-        k("Dota 2", "e0332b", url("steam://rungameid/570")),
-        k("Print", "ffb020", sc(&["cmd", "shift"], "4")),
-        k("Mudo", "7c5cff", media(MediaKey::Mute)),
+        k("Spotify", "1db954", app("Spotify")),
+        k("Steam", "1b2838", app("Steam")),
+        b("Dota 2", "bf2e1a", "dota2", "Dota 2", "BF2E1A", url("steam://rungameid/570")),
+        e("Captura", "ff9f0a", "📸", sc(&["cmd", "shift"], "4")),
     ];
-    keys.extend(media_row("38d6ff"));
+    keys.extend(media_row("2c2c2e"));
     v.push(profile("default", "Padrão", &[], keys));
 
     // ---- VS Code
-    let vs = |l: &str, a| k(l, blue, a);
+    let (gr, pu, ye, rd) = ("30d158", "bf5af2", "ff9f0a", "ff453a");
     v.push(profile("vscode", "VS Code", &["com.microsoft.VSCode", "com.microsoft.VSCodeInsiders", "Code"], vec![
-        vs("Paleta", sc(&["cmd", "shift"], "p")),
-        vs("Arquivo", sc(&["cmd"], "p")),
-        vs("Buscar", sc(&["cmd", "shift"], "f")),
-        vs("Explorer", sc(&["cmd", "shift"], "e")),
-        k("Git", "f05033", sc(&["ctrl", "shift"], "g")),
-        k("Terminal", "3ddc84", sc(&["ctrl"], "`")),
-        vs("Sidebar", sc(&["cmd"], "b")),
-        vs("Dividir", sc(&["cmd"], "\\")),
-        vs("Comentar", sc(&["cmd"], "/")),
-        vs("Formatar", sc(&["shift", "alt"], "f")),
-        k("Definição", "a259ff", sc(&[], "F12")),
-        k("Renomear", "a259ff", sc(&[], "F2")),
-        k("Debug", "ffb020", sc(&[], "F5")),
-        k("Parar", "ff2d55", sc(&["shift"], "F5")),
-        k("Salvar", "3ddc84", sc(&["cmd"], "s")),
+        e("Comandos", blue, "⚡", sc(&["cmd", "shift"], "p")),
+        e("Abrir arquivo", blue, "📄", sc(&["cmd"], "p")),
+        e("Buscar", blue, "🔍", sc(&["cmd", "shift"], "f")),
+        e("Explorador", blue, "📁", sc(&["cmd", "shift"], "e")),
+        b("Git", "f05033", "git", "Git", "F03C2E", sc(&["ctrl", "shift"], "g")),
+        e("Terminal", gr, "💻", sc(&["ctrl"], "`")),
+        k("Barra lateral", blue, sc(&["cmd"], "b")),
+        k("Dividir", blue, sc(&["cmd"], "\\")),
+        k("Comentar", blue, sc(&["cmd"], "/")),
+        e("Formatar", blue, "✨", sc(&["shift", "alt"], "f")),
+        e("Definição", pu, "🧭", sc(&[], "F12")),
+        e("Renomear", pu, "✏️", sc(&[], "F2")),
+        e("Debug", ye, "🐛", sc(&[], "F5")),
+        e("Parar", rd, "⏹️", sc(&["shift"], "F5")),
+        e("Salvar", gr, "💾", sc(&["cmd"], "s")),
     ]));
 
     // ---- Cursor (VS Code base + AI)
-    let ai = "e8e8e8";
+    let ai = "3a3a3c";
     v.push(profile("cursor", "Cursor", &["com.todesktop.230313mzl4w4u92", "Cursor"], vec![
-        k("Chat", ai, sc(&["cmd"], "l")),
-        k("Editar", ai, sc(&["cmd"], "k")),
-        k("Agente", ai, sc(&["cmd"], "i")),
-        k("Aceitar", "3ddc84", sc(&["cmd"], "Return")),
-        k("Rejeitar", "ff2d55", sc(&["cmd"], "Backspace")),
-        k("Paleta", blue, sc(&["cmd", "shift"], "p")),
-        k("Arquivo", blue, sc(&["cmd"], "p")),
-        k("Buscar", blue, sc(&["cmd", "shift"], "f")),
-        k("Terminal", "3ddc84", sc(&["ctrl"], "`")),
-        k("Git", "f05033", sc(&["ctrl", "shift"], "g")),
-        k("Sidebar", blue, sc(&["cmd"], "b")),
+        e("Chat", ai, "💬", sc(&["cmd"], "l")),
+        e("Editar", ai, "✏️", sc(&["cmd"], "k")),
+        e("Agente", ai, "🤖", sc(&["cmd"], "i")),
+        e("Aceitar", gr, "✅", sc(&["cmd"], "Return")),
+        e("Rejeitar", rd, "❌", sc(&["cmd"], "Backspace")),
+        e("Comandos", blue, "⚡", sc(&["cmd", "shift"], "p")),
+        e("Abrir arquivo", blue, "📄", sc(&["cmd"], "p")),
+        e("Buscar", blue, "🔍", sc(&["cmd", "shift"], "f")),
+        e("Terminal", gr, "💻", sc(&["ctrl"], "`")),
+        b("Git", "f05033", "git", "Git", "F03C2E", sc(&["ctrl", "shift"], "g")),
+        k("Barra lateral", blue, sc(&["cmd"], "b")),
         k("Comentar", blue, sc(&["cmd"], "/")),
-        k("Definição", "a259ff", sc(&[], "F12")),
-        k("Renomear", "a259ff", sc(&[], "F2")),
-        k("Salvar", "3ddc84", sc(&["cmd"], "s")),
+        e("Definição", pu, "🧭", sc(&[], "F12")),
+        e("Renomear", pu, "✏️", sc(&[], "F2")),
+        e("Salvar", gr, "💾", sc(&["cmd"], "s")),
     ]));
 
     // ---- Figma
@@ -110,93 +118,94 @@ pub fn all() -> Vec<Profile> {
         k("Retângulo", fb, sc(&[], "r")),
         k("Texto", fb, sc(&[], "t")),
         k("Caneta", fb, sc(&[], "p")),
-        k("Auto layout", fp, sc(&["shift"], "a")),
-        k("Componente", fp, sc(&["alt", "cmd"], "k")),
-        k("Agrupar", fp, sc(&["cmd"], "g")),
+        e("Auto layout", fp, "📐", sc(&["shift"], "a")),
+        e("Componente", fp, "🧩", sc(&["alt", "cmd"], "k")),
+        e("Agrupar", fp, "🗂️", sc(&["cmd"], "g")),
         k("Desagrupar", fp, sc(&["shift", "cmd"], "g")),
-        k("Duplicar", fp, sc(&["cmd"], "d")),
-        k("Ajustar", fg, sc(&["shift"], "1")),
+        e("Duplicar", fp, "📑", sc(&["cmd"], "d")),
+        e("Ajustar tela", fg, "🔍", sc(&["shift"], "1")),
         k("Zoom 100%", fg, sc(&["shift"], "0")),
-        k("Copiar estilo", fr, sc(&["alt", "cmd"], "c")),
-        k("Colar estilo", fr, sc(&["alt", "cmd"], "v")),
-        k("Ações", fr, sc(&["cmd"], "/")),
+        e("Copiar estilo", fr, "🎨", sc(&["alt", "cmd"], "c")),
+        e("Colar estilo", fr, "🖌️", sc(&["alt", "cmd"], "v")),
+        e("Ações", fr, "⚡", sc(&["cmd"], "/")),
     ]));
 
     // ---- Discord
     let dc = "5865f2";
     v.push(profile("discord", "Discord", &["com.hnc.Discord", "Discord"], vec![
-        k("Mudo", "ff2d55", sc(&["cmd", "shift"], "m")),
-        k("Ensurdecer", "ff2d55", sc(&["cmd", "shift"], "d")),
-        k("Atender", "3ddc84", sc(&["cmd"], "Return")),
-        k("Recusar", "ff2d55", sc(&[], "Escape")),
-        k("Ir para…", dc, sc(&["cmd"], "k")),
-        k("Canal ↑", dc, sc(&["alt"], "Up")),
-        k("Canal ↓", dc, sc(&["alt"], "Down")),
+        e("Microfone", rd, "🎙️", sc(&["cmd", "shift"], "m")),
+        e("Som", rd, "🎧", sc(&["cmd", "shift"], "d")),
+        e("Atender", gr, "📞", sc(&["cmd"], "Return")),
+        e("Recusar", rd, "❌", sc(&[], "Escape")),
+        e("Ir para…", dc, "🧭", sc(&["cmd"], "k")),
+        k("Canal acima", dc, sc(&["alt"], "Up")),
+        k("Canal abaixo", dc, sc(&["alt"], "Down")),
         k("Não lido ↑", dc, sc(&["alt", "shift"], "Up")),
         k("Não lido ↓", dc, sc(&["alt", "shift"], "Down")),
-        k("Marcar lido", dc, sc(&["shift"], "Escape")),
-        k("Emoji", "ffb020", sc(&["cmd"], "e")),
-        k("Enviar arquivo", "ffb020", sc(&["cmd", "shift"], "u")),
-        k("Caixa", "ffb020", sc(&["cmd"], "i")),
-        k("Membros", "ffb020", sc(&["cmd"], "u")),
-        k("Fixados", "ffb020", sc(&["cmd"], "p")),
+        e("Marcar lido", dc, "✅", sc(&["shift"], "Escape")),
+        e("Emoji", ye, "😀", sc(&["cmd"], "e")),
+        e("Enviar arquivo", ye, "📎", sc(&["cmd", "shift"], "u")),
+        e("Menções", ye, "🔔", sc(&["cmd"], "i")),
+        e("Membros", ye, "👥", sc(&["cmd"], "u")),
+        e("Fixadas", ye, "📌", sc(&["cmd"], "p")),
     ]));
 
     // ---- Steam
-    let st = "66c0f4";
+    let st = "1b2838";
     let mut keys = vec![
-        k("Biblioteca", st, url("steam://open/games")),
-        k("Loja", st, url("steam://store")),
-        k("Amigos", st, url("steam://open/friends")),
-        k("Downloads", st, url("steam://open/downloads")),
-        k("Big Picture", st, url("steam://open/bigpicture")),
-        k("Dota 2", "e0332b", url("steam://rungameid/570")),
-        k("Discord", "5865f2", app("Discord")),
-        k("Overlay", "ffb020", sc(&["shift"], "Tab")),
-        k("Screenshot", "ffb020", sc(&[], "F12")),
-        k("Mudo", "7c5cff", media(MediaKey::Mute)),
+        e("Biblioteca", st, "🎮", url("steam://open/games")),
+        e("Loja", st, "🛒", url("steam://store")),
+        e("Amigos", st, "👥", url("steam://open/friends")),
+        e("Downloads", st, "⬇️", url("steam://open/downloads")),
+        e("Big Picture", st, "📺", url("steam://open/bigpicture")),
+        b("Dota 2", "bf2e1a", "dota2", "Dota 2", "BF2E1A", url("steam://rungameid/570")),
+        k("Discord", dc, app("Discord")),
+        e("Overlay", "66c0f4", "🧭", sc(&["shift"], "Tab")),
+        e("Captura", ye, "📸", sc(&[], "F12")),
+        e("Mudo", "5e5ce6", "🔇", media(MediaKey::Mute)),
     ];
-    keys.extend(media_row("7c5cff"));
+    keys.extend(media_row("2c2c2e"));
     v.push(profile("steam", "Steam", &["com.valvesoftware.steam", "steamwebhelper", "steam"], keys));
 
     // ---- Dota 2 (default hotkeys: abilities QWE DF R, items ZXC VBN)
-    let (ab, ul, it) = ("38d6ff", "ff2d55", "ffb020");
+    let (ab, ul, it) = ("0a84ff", "ff453a", "ff9f0a");
     v.push(profile("dota2", "Dota 2", &["com.valvesoftware.dota2", "dota2", "Dota 2"], vec![
-        k("Q", ab, sc(&[], "q")),
-        k("W", ab, sc(&[], "w")),
-        k("E", ab, sc(&[], "e")),
-        k("D", ab, sc(&[], "d")),
-        k("F", ab, sc(&[], "f")),
-        k("ULT", ul, sc(&[], "r")),
+        k("Habilidade 1", ab, sc(&[], "q")),
+        k("Habilidade 2", ab, sc(&[], "w")),
+        k("Habilidade 3", ab, sc(&[], "e")),
+        k("Extra 1", ab, sc(&[], "d")),
+        k("Extra 2", ab, sc(&[], "f")),
+        e("Ultimate", ul, "💥", sc(&[], "r")),
         k("Item 1", it, sc(&[], "z")),
         k("Item 2", it, sc(&[], "x")),
         k("Item 3", it, sc(&[], "c")),
-        k("Herói", "3ddc84", sc(&[], "F1")),
+        e("Herói", gr, "🧙", sc(&[], "F1")),
         k("Item 4", it, sc(&[], "v")),
         k("Item 5", it, sc(&[], "b")),
         k("Item 6", it, sc(&[], "n")),
-        k("Loja", "3ddc84", sc(&[], "F4")),
-        k("Discord", "5865f2", app("Discord")),
+        e("Loja", gr, "🛒", sc(&[], "F4")),
+        k("Discord", dc, app("Discord")),
     ]));
 
-    // ---- ChatGPT / Claude: prompt snippets + chat basics
+    // ---- ChatGPT / Claude: chat basics + prompt snippets
     let chat = |id: &str, name: &str, apps: &[&str], c: &str| {
+        let (cy, vi, am) = ("32ade6", "bf5af2", "ff9f0a");
         profile(id, name, apps, vec![
-            k("Novo chat", c, sc(&["cmd"], "n")),
-            k("Colar", c, sc(&["cmd"], "v")),
-            k("Enviar", "3ddc84", sc(&[], "Return")),
-            k("Copiar", c, sc(&["cmd"], "c")),
-            k("Parar", "ff2d55", sc(&[], "Escape")),
-            k("Explicar", "38d6ff", text("Explique este código passo a passo:\n")),
-            k("Revisar", "38d6ff", text("Revise este código, aponte bugs e sugira melhorias:\n")),
-            k("Testes", "38d6ff", text("Escreva testes para este código:\n")),
-            k("Refatorar", "38d6ff", text("Refatore mantendo o comportamento, mais legível:\n")),
-            k("Resumir", "a259ff", text("Resuma em tópicos curtos:\n")),
-            k("Traduzir EN", "a259ff", text("Traduza para inglês, tom natural:\n")),
-            k("Melhorar texto", "a259ff", text("Melhore este texto, mais claro e direto:\n")),
-            k("Commit msg", "ffb020", text("Escreva uma mensagem de commit (conventional commits) para este diff:\n")),
-            k("Email", "ffb020", text("Escreva um email profissional e curto sobre:\n")),
-            k("Encurtar", "ffb020", text("Deixe mais curto, sem perder o essencial:\n")),
+            e("Novo chat", c, "✨", sc(&["cmd"], "n")),
+            e("Colar", c, "📋", sc(&["cmd"], "v")),
+            e("Enviar", gr, "🚀", sc(&[], "Return")),
+            e("Copiar", c, "📄", sc(&["cmd"], "c")),
+            e("Parar", rd, "⏹️", sc(&[], "Escape")),
+            e("Explicar", cy, "💡", text("Explique este código passo a passo:\n")),
+            e("Revisar", cy, "🔍", text("Revise este código, aponte bugs e sugira melhorias:\n")),
+            e("Testes", cy, "🧪", text("Escreva testes para este código:\n")),
+            e("Refatorar", cy, "🛠️", text("Refatore mantendo o comportamento, mais legível:\n")),
+            e("Resumir", vi, "📝", text("Resuma em tópicos curtos:\n")),
+            e("Traduzir", vi, "🌍", text("Traduza para inglês, tom natural:\n")),
+            e("Melhorar", vi, "✍️", text("Melhore este texto, mais claro e direto:\n")),
+            e("Commit", am, "💾", text("Escreva uma mensagem de commit (conventional commits) para este diff:\n")),
+            e("Email", am, "📧", text("Escreva um email profissional e curto sobre:\n")),
+            e("Encurtar", am, "✂️", text("Deixe mais curto, sem perder o essencial:\n")),
         ])
     };
     v.push(chat("chatgpt", "ChatGPT", &["com.openai.chat", "com.openai.codex", "ChatGPT"], "10a37f"));

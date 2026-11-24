@@ -166,6 +166,21 @@ impl Config {
                     }
                 }
             }
+            // v1 -> v2: built-in profiles the user never edited get the new keys (icons, clearer names)
+            if self.presets_version < 2 {
+                let old = crate::presets_v1::all();
+                let same = |a: &[crate::config::KeyConfig], b: &[crate::config::KeyConfig]| {
+                    a.len() == b.len() && a.iter().zip(b).all(|(x, y)| x.label == y.label && x.action == y.action && x.icon.is_none())
+                };
+                for new in crate::presets::all() {
+                    let Some(o) = old.iter().find(|p| p.id == new.id) else { continue };
+                    if let Some(p) = self.profiles.iter_mut().find(|p| p.id == new.id) {
+                        if same(&p.keys, &o.keys) {
+                            p.keys = new.keys.clone();
+                        }
+                    }
+                }
+            }
             // add the built-in profiles the user doesn't have yet (never overwrite edited ones)
             for p in crate::presets::all() {
                 if self.profile(&p.id).is_none() {

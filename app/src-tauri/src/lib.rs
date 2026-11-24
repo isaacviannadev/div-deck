@@ -2,6 +2,7 @@ mod actions;
 mod apps;
 mod config;
 mod presets;
+mod presets_v1;
 mod serial;
 
 use config::{Action, Config, DeckConfig, MediaKey};
@@ -296,7 +297,7 @@ pub(crate) fn on_icon_needed(app: &AppHandle, deck: &str, hash: &str) {
         return;
     }
     let Ok(bytes) = std::fs::read(st.tile_icons.join(hash)) else { return };
-    for chunk in bytes.chunks(768) {
+    for chunk in bytes.chunks(384) {
         st.decks.send(deck, format!("IB {hash} {}", base64::engine::general_purpose::STANDARD.encode(chunk)));
     }
     st.decks.send(deck, format!("IE {hash}"));
