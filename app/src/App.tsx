@@ -347,8 +347,8 @@ function Main({ initial }: { initial: AppStateDto }) {
             <small className="deck-meta">{modelName(deck.model)}{deck.firmware ? ` · firmware ${deck.firmware}` : ""}</small>
             <Toggle label="Segue o app em foco" checked={deck.followApp} onChange={(v) => changeDeck({ followApp: v })} />
             {deck.model === "pro" && <Toggle label="Tela invertida (180°)" checked={deck.flipped} onChange={(v) => changeDeck({ flipped: v })} />}
-            {deck.model === "pro" && <Toggle label="Barra de estado" checked={deck.status?.show ?? true} onChange={(v) => changeDeck({ status: { ...(deck.status ?? { show: true, time: true, date: true, profile: true }), show: v } })} />}
-            {deck.model === "pro" && (deck.status?.show ?? true) && (
+            {<Toggle label={deck.model === "pro" ? "Barra de estado" : "Tela OLED"} checked={deck.status?.show ?? true} onChange={(v) => changeDeck({ status: { ...(deck.status ?? { show: true, time: true, date: true, profile: true }), show: v } })} />}
+            {(deck.status?.show ?? true) && (
               <div className="status-opts">
                 {([["time", "Hora"], ["date", "Data"], ["profile", "Perfil"]] as const).map(([k, l]) => (
                   <label key={k} className="chk">

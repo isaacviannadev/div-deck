@@ -294,10 +294,11 @@ pub(crate) fn push_deck(app: &AppHandle, id: &str) {
     if pro {
         let flipped = cfg.deck(id).is_some_and(|d| d.flipped);
         st.decks.send(id, format!("O {}", if flipped { 3 } else { 1 }));
-        let sb = cfg.deck(id).map(|d| d.status.clone()).unwrap_or_default();
-        st.decks.send(id, format!("H {}", sb.mask()));
-        st.decks.send(id, format!("C {}", local_now()));
     }
+    // Pro status bar / MX OLED pod (MX firmware 1.2+; older firmware just answers ERR)
+    let sb = cfg.deck(id).map(|d| d.status.clone()).unwrap_or_default();
+    st.decks.send(id, format!("H {}", sb.mask()));
+    st.decks.send(id, format!("C {}", local_now()));
     if let Some(p) = active.as_deref().and_then(|a| cfg.profile(a)) {
         for (k, key) in p.keys.iter().enumerate() {
             st.decks.send(id, format!("L {k} {}", key.color));
@@ -310,8 +311,8 @@ pub(crate) fn push_deck(app: &AppHandle, id: &str) {
                 st.decks.send(id, format!("IH {k} {}", hash.as_deref().unwrap_or("-")));
             }
         }
+        st.decks.send(id, format!("N {}", ascii(&p.name)));
         if pro {
-            st.decks.send(id, format!("N {}", ascii(&p.name)));
             st.decks.send(id, "R");
         }
     }
@@ -800,13 +801,11 @@ pub fn run() {
 
             serial::spawn(app.handle().clone(), decks.clone());
             spawn_front_app_watcher(app.handle().clone());
-            // keep the Pro's status-bar clock right (it counts on its own in between)
+            // keep the Pro status-bar / MX OLED clock right (the decks count on their own in between)
             std::thread::spawn(move || loop {
                 std::thread::sleep(std::time::Duration::from_secs(300));
                 for l in decks.connected() {
-                    if l.model == "pro" {
-                        decks.send(&l.id, format!("C {}", local_now()));
-                    }
+                    decks.send(&l.id, format!("C {}", local_now()));
                 }
             });
             Ok(())

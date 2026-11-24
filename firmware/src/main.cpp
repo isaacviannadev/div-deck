@@ -17,6 +17,12 @@
 //     P <rrggbb>                                  colour flashed while a key is held
 //     B <0-255>                                   brightness (capped at BRIGHTNESS_MAX)
 //     S                                           save colours + brightness to flash
+//     C <epoch>                                   local time (seconds, already in the user's zone) - OLED clock
+//     N <name>                                    active profile name - OLED
+//     H <mask>                                    OLED: bit0 on, bit1 time, bit2 date, bit3 profile (saved)
+//
+// Optional 0.96" SSD1306 OLED (I2C 0x3C/0x3D on OLED_SDA/OLED_SCL, v1.4 pod). It is mounted upside
+// down in the pod, so the image is rotated 180 deg. Without the OLED everything else works as before.
 //
 // Without a host (no PING for 5 s) the deck runs standalone: keys breathe softly in their
 // saved colours and light up on press, so you can test the hardware with no app at all.
@@ -24,6 +30,9 @@
 #include <Arduino.h>
 #include <Adafruit_NeoPixel.h>
 #include <Preferences.h>
+#include <Wire.h>
+#include <U8g2lib.h>
+#include <time.h>
 #include "config.h"
 
 #ifndef DIVDECK_VERSION
@@ -43,7 +52,16 @@ static uint32_t keyChangedAt[KEYS];  // when the raw reading last changed
 
 static uint32_t lastPing = 0;
 static bool ledsDirty = true;
-static char rxBuf[64];
+static char rxBuf[96];
+
+// OLED state
+static U8G2_SSD1306_128X64_NONAME_F_HW_I2C oled(OLED_ROTATION, U8X8_PIN_NONE);
+static bool oledOk = false;
+static uint8_t oledMask = 0x0F;      // bit0 on, bit1 time, bit2 date, bit3 profile
+static bool oledDirty = true;
+static int64_t clockBase = 0;        // local epoch received from the app (0 = unknown)
+static uint32_t clockAt = 0;         // millis() when clockBase was received
+static char profileName[40] = "";
 static uint8_t rxLen = 0;
 
 // ---------------------------------------------------------------- persistence
@@ -51,6 +69,7 @@ static void loadSettings() {
   prefs.begin("divdeck", true);
   brightness = min<uint8_t>(prefs.getUChar("bri", BRIGHTNESS_DEFAULT), BRIGHTNESS_MAX);
   pressColor = prefs.getUInt("press", 0xFFFFFF);
+  oledMask = prefs.getUChar("oled", 0x0F);
   for (uint8_t k = 0; k < KEYS; k++) {
     char key[6];
     snprintf(key, sizeof key, "c%u", k);
@@ -65,6 +84,7 @@ static void saveSettings() {
   prefs.begin("divdeck", false);
   prefs.putUChar("bri", brightness);
   prefs.putUInt("press", pressColor);
+  prefs.putUChar("oled", oledMask);
   for (uint8_t k = 0; k < KEYS; k++) {
     char key[6];
     snprintf(key, sizeof key, "c%u", k);
@@ -128,6 +148,81 @@ static void renderLeds() {
   strip.show();
 }
 
+// ---------------------------------------------------------------- OLED
+static const char *WD[] = {"DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"};
+static const char *MO[] = {"JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"};
+
+static void setupOled() {
+  Wire.begin(OLED_SDA, OLED_SCL);
+  uint8_t addr = 0;
+  for (uint8_t a : {0x3C, 0x3D}) {
+    Wire.beginTransmission(a);
+    if (Wire.endTransmission() == 0) { addr = a; break; }
+  }
+  if (!addr) return;                 // no display: keep running without it
+  oled.setI2CAddress(addr << 1);
+  oled.setBusClock(400000);
+  oledOk = oled.begin();
+}
+
+static bool nowTm(struct tm &t) {
+  if (!clockBase) return false;
+  time_t s = (time_t)(clockBase + (millis() - clockAt) / 1000);
+  gmtime_r(&s, &t);                  // clockBase is already local time
+  return true;
+}
+
+// Draws the whole screen. Content drifts by up to 2 px every few minutes against burn-in.
+static void drawOled() {
+  if (!oledOk) return;
+  oledDirty = false;
+  if (!(oledMask & 1)) { oled.setPowerSave(1); return; }
+  oled.setPowerSave(0);
+  oled.setContrast(map(brightness, 0, BRIGHTNESS_MAX, 8, 255));
+  struct tm t;
+  bool haveTime = nowTm(t);
+  uint32_t drift = haveTime ? (uint32_t)(t.tm_hour * 60 + t.tm_min) / 3 : millis() / 180000;
+  int dx = (int)(drift % 5) - 2, dy = (int)((drift / 5) % 3) - 1;
+  oled.clearBuffer();
+  bool showProfile = (oledMask & 8) && profileName[0];
+  bool showTime = (oledMask & 2) && haveTime;
+  bool showDate = (oledMask & 4) && haveTime;
+  if (!showTime && !showDate && !showProfile) {
+    // idle splash: brand + a blinking prompt
+    oled.setFont(u8g2_font_logisoso16_tr);
+    oled.drawStr(18 + dx, 30 + dy, "DIV DECK");
+    oled.setFont(u8g2_font_6x12_tr);
+    oled.drawStr(40 + dx, 50 + dy, (millis() / 1000) % 2 ? "> mx _" : "> mx");
+    oled.sendBuffer();
+    return;
+  }
+  int y = 0;
+  if (showProfile) {
+    oled.setFont(u8g2_font_6x12_tr);
+    char line[24];
+    snprintf(line, sizeof line, "> %.19s", profileName);
+    oled.drawStr(2 + dx, 10 + dy, line);
+    oled.drawHLine(0, 13 + dy, 128);
+    y = 14;
+  }
+  if (showTime) {
+    char hm[6];
+    snprintf(hm, sizeof hm, "%02d:%02d", t.tm_hour, t.tm_min);
+    oled.setFont(u8g2_font_logisoso28_tn);
+    int w = oled.getStrWidth(hm);
+    int base = showDate ? y + 34 : y + 40;
+    oled.drawStr((128 - w) / 2 + dx, base + dy, hm);
+  }
+  if (showDate) {
+    char d[20];
+    snprintf(d, sizeof d, "%s %02d %s", WD[t.tm_wday], t.tm_mday, MO[t.tm_mon]);
+    oled.setFont(u8g2_font_6x12_tr);
+    int w = oled.getStrWidth(d);
+    oled.drawStr((128 - w) / 2 + dx, (showTime ? 62 : y + 30) + dy, d);
+  }
+  oled.sendBuffer();
+}
+
 // ---------------------------------------------------------------- serial protocol
 static bool parseHex(const char *s, uint32_t &out) {
   if (strlen(s) != 6) return false;
@@ -142,6 +237,9 @@ static void hello() {
 }
 
 static void handleLine(char *line) {
+  char raw[sizeof rxBuf];
+  strncpy(raw, line, sizeof raw - 1);
+  raw[sizeof raw - 1] = '\0';
   char *cmd = strtok(line, " ");
   if (!cmd) return;
   char *a = strtok(nullptr, " ");
@@ -166,6 +264,17 @@ static void handleLine(char *line) {
   } else if (!strcmp(cmd, "B") && a) {
     brightness = constrain(atoi(a), 0, BRIGHTNESS_MAX);
     ledsDirty = true; Serial.println("OK");
+  } else if (!strcmp(cmd, "C") && a) {
+    clockBase = atoll(a); clockAt = millis(); oledDirty = true; Serial.println("OK");
+  } else if (!strcmp(cmd, "N")) {
+    // the name may contain spaces: take the rest of the raw line after "N "
+    strncpy(profileName, strlen(raw) > 2 ? raw + 2 : "", sizeof profileName - 1);
+    profileName[sizeof profileName - 1] = '\0';
+    oledDirty = true; Serial.println("OK");
+  } else if (!strcmp(cmd, "H") && a) {
+    uint8_t m = atoi(a) & 0x0F;
+    if (m != oledMask) { oledMask = m; saveSettings(); }
+    oledDirty = true; Serial.println("OK");
   } else if (!strcmp(cmd, "S")) {
     saveSettings(); Serial.println("OK");
   } else {
@@ -201,6 +310,8 @@ void setup() {
     strip.show();
     delay(40);
   }
+  setupOled();
+  drawOled();
   hello();
 }
 
@@ -213,5 +324,15 @@ void loop() {
   if (ledsDirty || (standalone && now - lastFrame >= 20)) {
     lastFrame = now; ledsDirty = false;
     renderLeds();
+  }
+  // OLED: redraw when something changed, every minute for the clock, every second on the splash
+  static uint32_t lastOled = 0;
+  static int lastMin = -1;
+  if (oledOk && now - lastOled >= 250) {
+    lastOled = now;
+    struct tm t;
+    int m = nowTm(t) ? t.tm_min : (int)((now / 1000) % 2);
+    if (m != lastMin) { lastMin = m; oledDirty = true; }
+    if (oledDirty) drawOled();
   }
 }

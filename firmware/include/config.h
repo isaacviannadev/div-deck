@@ -25,6 +25,11 @@ constexpr uint8_t LED_COUNT = 15;
 constexpr uint8_t BRIGHTNESS_MAX = 96;
 constexpr uint8_t BRIGHTNESS_DEFAULT = 48;
 
+// Optional 0.96" SSD1306 OLED (v1.4 pod): VCC -> 3V3, GND -> GND, SDA -> GPIO21, SCL -> GPIO22.
+constexpr uint8_t OLED_SDA = 21;
+constexpr uint8_t OLED_SCL = 22;
+#define OLED_ROTATION U8G2_R2           // the pod holds the display upside down (header toward the keys)
+
 constexpr uint32_t SERIAL_BAUD = 115200;
 constexpr uint8_t DEBOUNCE_MS = 5;
 constexpr uint32_t HOST_TIMEOUT_MS = 5000;   // no PING for this long -> standalone mode
