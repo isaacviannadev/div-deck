@@ -100,7 +100,7 @@ struct Tile {
 };
 // Tile faces: the app renders each whole tile (background, icon, text, anti-aliased) as an
 // 86 x 96 RGB565 (big-endian) picture, cached in flash by hash. Without one the deck draws its own.
-static const int FACE_W = 86, FACE_H = 96;
+static const int FACE_W = 86, FACE_H = 90;
 static const size_t ICON_BYTES = FACE_W * FACE_H * 2;
 static bool haveFace[KEYS];
 static uint16_t faceBuf[FACE_W * FACE_H];
@@ -118,12 +118,18 @@ static bool wasStandalone = true;
 static int8_t touched = -1;
 static bool locked = false;       // swipe down from the top edge: screen locked, logo animation
 static uint32_t lockFrame = 0;
+// status bar (like a phone): time, profile, date. The app sends the local time and what to show.
+static uint8_t hdrMask = 0x0F;     // bit0 bar on, bit1 time, bit2 date, bit3 profile
+static int64_t clockBase = 0;      // local time (s since epoch) at clockAt
+static uint32_t clockAt = 0;
+static int lastMinute = -1;
 
 // ---------------------------------------------------------------- persistence
 static void loadSettings() {
   prefs.begin("divpro", true);
   brightness = prefs.getUChar("bri", 48);
   rotation = prefs.getUChar("rot", 1);
+  hdrMask = prefs.getUChar("hdr", 0x0F);
   pressColor = prefs.getUInt("press", 0xFFFFFF);
   prefs.getString("name", profileName, sizeof profileName);
   bool have = prefs.getBytesLength("tiles2") == sizeof tiles;
@@ -149,6 +155,7 @@ static void saveSettings() {
   prefs.begin("divpro", false);
   prefs.putUChar("bri", brightness);
   prefs.putUChar("rot", rotation);
+  prefs.putUChar("hdr", hdrMask);
   prefs.putUInt("press", pressColor);
   prefs.putString("name", profileName);
   prefs.putBytes("tiles2", tiles, sizeof tiles);
@@ -197,9 +204,15 @@ static void dropOldIcons() {   // keep the flash from filling up: oldest files g
 // ---------------------------------------------------------------- drawing
 static const int MARGIN = 8, GAP = 8;
 static int tileW() { return (tft.width() - 2 * MARGIN - (COLS - 1) * GAP) / COLS; }
-static int tileH() { return (tft.height() - 2 * MARGIN - (ROWS - 1) * GAP) / ROWS; }
+static int tileH() { return FACE_H; }
+static const int HDR_H = 22;
+static bool hdrOn() { return hdrMask & 1; }
+static int gridTop() {   // the 3 rows sit under the status bar, or centred without it
+  int block = ROWS * tileH() + (ROWS - 1) * GAP;
+  return hdrOn() ? tft.height() - MARGIN - block : (tft.height() - block) / 2;
+}
 static int tileX(uint8_t k) { return MARGIN + (k % COLS) * (tileW() + GAP); }
-static int tileY(uint8_t k) { return MARGIN + (k / COLS) * (tileH() + GAP); }
+static int tileY(uint8_t k) { return gridTop() + (k / COLS) * (tileH() + GAP); }
 
 static uint16_t rgb(uint32_t c, float f = 1.0f) {
   uint8_t r = ((c >> 16) & 0xFF) * f, g = ((c >> 8) & 0xFF) * f, b = (c & 0xFF) * f;
@@ -277,12 +290,45 @@ static void drawTile(uint8_t k, bool pressed) {
   }
 }
 
+static const char *WD[] = {"dom", "seg", "ter", "qua", "qui", "sex", "sab"};
+static const char *MO[] = {"jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"};
+static bool nowTm(struct tm &t) {
+  if (!clockBase) return false;
+  time_t n = (time_t)(clockBase + (millis() - clockAt) / 1000);
+  gmtime_r(&n, &t);
+  return true;
+}
+static void drawHeader() {
+  if (!hdrOn() || locked) return;
+  int w = tft.width(), y = HDR_H / 2 + 2;
+  tft.startWrite();
+  tft.fillRect(0, 0, w, gridTop() - 2, TFT_BLACK);
+  tft.setFont(&fonts::Font2);
+  uint16_t fg = tft.color565(0xd8, 0xd8, 0xdc), dim = tft.color565(0x8a, 0x8a, 0x90);
+  struct tm t; bool ok = nowTm(t);
+  char b[24];
+  if ((hdrMask & 2) && ok) {
+    snprintf(b, sizeof b, "%02d:%02d", t.tm_hour, t.tm_min);
+    tft.setTextColor(fg); tft.setTextDatum(middle_left); tft.drawString(b, MARGIN + 2, y);
+  }
+  if (hdrMask & 8 && profileName[0]) {
+    tft.setTextColor(fg); tft.setTextDatum(middle_center); tft.drawString(profileName, w / 2, y);
+  }
+  if ((hdrMask & 4) && ok) {
+    snprintf(b, sizeof b, "%s %d %s", WD[t.tm_wday], t.tm_mday, MO[t.tm_mon]);
+    tft.setTextColor(dim); tft.setTextDatum(middle_right); tft.drawString(b, w - MARGIN - 2, y);
+  }
+  tft.endWrite();
+  if (ok) lastMinute = t.tm_min;
+}
+
 static void drawAll() {
   if (locked) { for (uint8_t k = 0; k < KEYS; k++) tileDirty[k] = true; return; }
   tft.startWrite();
   tft.fillScreen(TFT_BLACK);
   for (uint8_t k = 0; k < KEYS; k++) { drawTile(k, k == touched); tileDirty[k] = false; }
   tft.endWrite();
+  drawHeader();
 }
 
 static void drawDirty() {
@@ -322,13 +368,24 @@ static const int8_t LOGO_N = 12;
 static const float LOGO_R[LOGO_N] = {1.55, 1.3, 1.7, 1.42, 1.38, 1.72, 1.28, 1.6, 1.68, 1.45, 1.58, 1.25};
 
 static void drawLockFrame(bool full) {
-  int cx = tft.width() / 2, cy = tft.height() / 2 - 22;
+  int cx = tft.width() / 2, cy = tft.height() / 2 + 4;
   tft.startWrite();
   if (full) {
     tft.fillScreen(TFT_BLACK);
     tft.setTextColor(TFT_WHITE); tft.setTextDatum(middle_center);
     tft.setFont(&fonts::FreeSansBold12pt7b);
     tft.drawString("DIV Deck Pro", cx, cy + 66);
+    struct tm t;
+    if (nowTm(t)) {                                  // the time, big, above the logo
+      char b[24];
+      snprintf(b, sizeof b, "%02d:%02d", t.tm_hour, t.tm_min);
+      tft.setFont(&fonts::FreeSansBold18pt7b); tft.setTextColor(TFT_WHITE);
+      tft.drawString(b, cx, 34);
+      snprintf(b, sizeof b, "%s, %d %s", WD[t.tm_wday], t.tm_mday, MO[t.tm_mon]);
+      tft.setFont(&fonts::Font2); tft.setTextColor(tft.color565(0x8a, 0x8a, 0x90));
+      tft.drawString(b, cx, 62);
+      lastMinute = t.tm_min;
+    }
     tft.setTextColor(tft.color565(0x60, 0x60, 0x66));
     tft.setFont(&fonts::Font2);
     tft.drawString("deslize para cima para desbloquear", cx, tft.height() - 18);
@@ -511,7 +568,13 @@ static void handleLine(char *line) {
     stageHash[0] = '\0'; stageLen = 0;
     Serial.printf("SAVED %s\n", rest);
   } else if (!strcmp(cmd, "N")) {
-    strlcpy(profileName, rest ? rest : "", sizeof profileName); Serial.println("OK");
+    strlcpy(profileName, rest ? rest : "", sizeof profileName); drawHeader(); Serial.println("OK");
+  } else if (!strcmp(cmd, "C") && rest) {          // local time, seconds since 1970 (in the user's zone)
+    clockBase = atoll(rest); clockAt = millis(); drawHeader(); Serial.println("OK");
+  } else if (!strcmp(cmd, "H") && rest) {          // status bar: bit0 on, bit1 time, bit2 date, bit3 profile
+    uint8_t m = atoi(rest) & 0x0F;
+    if (m != hdrMask) { hdrMask = m; saveSettings(); tft.fillScreen(TFT_BLACK); drawAll(); }
+    Serial.println("OK");
   } else if (!strcmp(cmd, "O") && rest) {
     uint8_t r = atoi(rest) == 3 ? 3 : 1;
     if (r != rotation) { rotation = r; tft.setRotation(rotation); drawAll(); }
@@ -560,6 +623,15 @@ void loop() {
   uint32_t now = millis();
   pollSerial();
   if (now - lastTouch >= 15) { lastTouch = now; pollTouch(); }
+  static uint32_t lastClock = 0;
+  if (now - lastClock >= 1000) {
+    lastClock = now;
+    struct tm t;
+    if (nowTm(t) && t.tm_min != lastMinute) {
+      if (locked) drawLockFrame(true); else drawHeader();
+      lastMinute = t.tm_min;
+    }
+  }
   static uint32_t lastAnim = 0;
   if (locked && now - lastAnim >= 33) { lastAnim = now; lockFrame++; drawLockFrame(false); }
   // small status LED on the SuperMini: green while the app is connected

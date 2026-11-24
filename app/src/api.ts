@@ -62,7 +62,11 @@ export interface DeckSettings {
   followApp: boolean;
   /** Pro: screen rotated 180°. */
   flipped: boolean;
+  /** Pro: status bar above the keys. */
+  status: StatusBar;
 }
+
+export interface StatusBar { show: boolean; time: boolean; date: boolean; profile: boolean; }
 
 export interface DeckInfo extends DeckSettings {
   connected: boolean;
@@ -183,9 +187,9 @@ const mock = (() => {
   let config: Config = structuredClone(presets) as Config;
   let auto = false;
   let decks: DeckInfo[] = [
-    { id: "port-cu-usbserial-0001", name: "DIV Deck", model: "mx", profile: config.baseProfile, followApp: true, flipped: false,
+    { id: "port-cu-usbserial-0001", name: "DIV Deck", model: "mx", profile: config.baseProfile, followApp: true, flipped: false, status: { show: true, time: true, date: true, profile: true },
       connected: true, port: "/dev/cu.usbserial-0001", firmware: "1.0.0", active: config.baseProfile },
-    { id: "pro-30edab12cd34", name: "DIV Deck Pro", model: "pro", profile: config.baseProfile, followApp: false, flipped: false,
+    { id: "pro-30edab12cd34", name: "DIV Deck Pro", model: "pro", profile: config.baseProfile, followApp: false, flipped: false, status: { show: true, time: true, date: true, profile: true },
       connected: true, port: "/dev/cu.usbmodem101", firmware: "0.2.0", active: config.baseProfile },
   ];
   const pushDecks = () => emit("deck://decks", structuredClone(decks));

@@ -256,7 +256,7 @@ function Main({ initial }: { initial: AppStateDto }) {
     if (!deck) return;
     const next = { ...deck, ...patch };
     setDecks((ds) => ds.map((d) => (d.id === deck.id ? next : d)));
-    api.updateDeck({ id: next.id, name: next.name, model: next.model, profile: next.profile, followApp: next.followApp, flipped: next.flipped });
+    api.updateDeck({ id: next.id, name: next.name, model: next.model, profile: next.profile, followApp: next.followApp, flipped: next.flipped, status: next.status });
   };
   const [deckName, setDeckName] = useState(deck?.name ?? "");
   useEffect(() => setDeckName(deck?.name ?? ""), [deck?.id, deck?.name]);
@@ -344,6 +344,18 @@ function Main({ initial }: { initial: AppStateDto }) {
             <small className="deck-meta">{modelName(deck.model)}{deck.firmware ? ` · firmware ${deck.firmware}` : ""}</small>
             <Toggle label="Segue o app em foco" checked={deck.followApp} onChange={(v) => changeDeck({ followApp: v })} />
             {deck.model === "pro" && <Toggle label="Tela invertida (180°)" checked={deck.flipped} onChange={(v) => changeDeck({ flipped: v })} />}
+            {deck.model === "pro" && <Toggle label="Barra de estado" checked={deck.status?.show ?? true} onChange={(v) => changeDeck({ status: { ...(deck.status ?? { show: true, time: true, date: true, profile: true }), show: v } })} />}
+            {deck.model === "pro" && (deck.status?.show ?? true) && (
+              <div className="status-opts">
+                {([["time", "Hora"], ["date", "Data"], ["profile", "Perfil"]] as const).map(([k, l]) => (
+                  <label key={k} className="chk">
+                    <input type="checkbox" checked={deck.status?.[k] ?? true}
+                      onChange={(e) => changeDeck({ status: { ...(deck.status ?? { show: true, time: true, date: true, profile: true }), [k]: e.target.checked } })} />
+                    {l}
+                  </label>
+                ))}
+              </div>
+            )}
             {!deck.connected && decks.length > 1 && (
               <button className="btn plain small danger" onClick={async () => {
                 const ok = await confirmDialog({ title: `Remover “${deck.name}” da lista?`, message: "Se voltar a ligá-lo, ele aparece outra vez como um deck novo.", confirm: "Remover", destructive: true });

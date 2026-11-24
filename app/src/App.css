@@ -398,8 +398,11 @@ button.device:hover { background: var(--fill); }
 .btn.destructive:hover { background: #ff5a50; }
 
 /* Pro tiles: the exact picture the deck shows */
-.deck.pro .key { width: 86px; height: 96px; padding: 0; background: #000; box-shadow: none; border-radius: 15px; }
+.deck.pro .key { width: 86px; height: 90px; padding: 0; background: #000; box-shadow: none; border-radius: 15px; }
 .deck.pro .key::before { display: none; }
-.deck.pro .key .face { display: block; width: 86px; height: 96px; border-radius: 15px; }
+.deck.pro .key .face { display: block; width: 86px; height: 90px; border-radius: 15px; }
 .deck.pro .key.down { transform: scale(.96); box-shadow: 0 0 0 3px #fff inset; }
 .deck.pro .key.down .face { filter: brightness(1.15); }
+
+.status-opts { display: flex; gap: 12px; padding: 2px 0 4px 2px; font-size: 12px; color: var(--text-2, #9a9aa2); }
+.status-opts .chk { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }

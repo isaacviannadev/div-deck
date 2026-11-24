@@ -93,6 +93,26 @@ pub struct DeckConfig {
     /// Pro only: screen rotated 180°.
     #[serde(default)]
     pub flipped: bool,
+    /// Pro only: the status bar above the keys.
+    #[serde(default)]
+    pub status: StatusBar,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct StatusBar {
+    pub show: bool,
+    pub time: bool,
+    pub date: bool,
+    pub profile: bool,
+}
+impl Default for StatusBar {
+    fn default() -> Self { Self { show: true, time: true, date: true, profile: true } }
+}
+impl StatusBar {
+    pub fn mask(&self) -> u8 {
+        (self.show as u8) | (self.time as u8) << 1 | (self.date as u8) << 2 | (self.profile as u8) << 3
+    }
 }
 fn yes() -> bool {
     true

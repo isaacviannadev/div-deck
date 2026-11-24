@@ -119,7 +119,7 @@ pub(crate) fn on_deck_connected(app: &AppHandle, link: &LinkInfo) {
             let same = cfg.decks.iter().filter(|d| d.name.starts_with(base)).count();
             let name = if same == 0 { base.to_string() } else { format!("{base} {}", same + 1) };
             let profile = cfg.base_profile.clone();
-            cfg.decks.push(DeckConfig { id: link.id.clone(), name, model: link.model.clone(), profile, follow_app: true, flipped: false });
+            cfg.decks.push(DeckConfig { id: link.id.clone(), name, model: link.model.clone(), profile, follow_app: true, flipped: false, status: Default::default() });
             let _ = cfg.save(&st.config_path);
         } else if let Some(d) = cfg.deck_mut(&link.id) {
             if d.model != link.model {
@@ -258,6 +258,11 @@ fn pro_glyph(a: &Action, cfg: &Config) -> String {
 
 /// Send brightness, press colour and the active profile's keys to one deck.
 /// MX: LED colours. Pro: tile colours, labels and glyphs, then a redraw.
+/// Local wall-clock time as seconds since 1970 (what the Pro shows in its status bar).
+pub(crate) fn local_now() -> i64 {
+    chrono::Local::now().naive_local().and_utc().timestamp()
+}
+
 pub(crate) fn push_deck(app: &AppHandle, id: &str) {
     let st = app.state::<AppState>();
     let Some(link) = st.decks.info(id) else { return };
@@ -269,6 +274,9 @@ pub(crate) fn push_deck(app: &AppHandle, id: &str) {
     if pro {
         let flipped = cfg.deck(id).is_some_and(|d| d.flipped);
         st.decks.send(id, format!("O {}", if flipped { 3 } else { 1 }));
+        let sb = cfg.deck(id).map(|d| d.status.clone()).unwrap_or_default();
+        st.decks.send(id, format!("H {}", sb.mask()));
+        st.decks.send(id, format!("C {}", local_now()));
     }
     if let Some(p) = active.as_deref().and_then(|a| cfg.profile(a)) {
         for (k, key) in p.keys.iter().enumerate() {
@@ -427,6 +435,7 @@ fn update_deck(app: AppHandle, st: tauri::State<AppState>, deck: DeckConfig) -> 
         }
         d.follow_app = deck.follow_app;
         d.flipped = deck.flipped;
+        d.status = deck.status.clone();
         cfg.save(&st.config_path).map_err(|e| e.to_string())?;
     }
     if refollow {
@@ -513,7 +522,7 @@ fn put_icon(st: tauri::State<AppState>, hash: String, data: String) -> Result<()
         return Err("hash inválido".into());
     }
     let bytes = base64::engine::general_purpose::STANDARD.decode(data).map_err(|e| e.to_string())?;
-    if bytes.len() != 86 * 96 * 2 {
+    if bytes.len() != 86 * 90 * 2 {
         return Err("tamanho inválido".into());
     }
     std::fs::create_dir_all(&st.tile_icons).map_err(|e| e.to_string())?;
@@ -766,8 +775,17 @@ pub fn run() {
             }
             tray.build(app)?;
 
-            serial::spawn(app.handle().clone(), decks);
+            serial::spawn(app.handle().clone(), decks.clone());
             spawn_front_app_watcher(app.handle().clone());
+            // keep the Pro's status-bar clock right (it counts on its own in between)
+            std::thread::spawn(move || loop {
+                std::thread::sleep(std::time::Duration::from_secs(300));
+                for l in decks.connected() {
+                    if l.model == "pro" {
+                        decks.send(&l.id, format!("C {}", local_now()));
+                    }
+                }
+            });
             Ok(())
         })
         .on_window_event(|window, event| {

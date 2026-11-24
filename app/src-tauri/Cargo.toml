@@ -1,6 +1,6 @@
 [package]
 name = "divdeck"
-version = "0.4.2"
+version = "0.5.0"
 description = "DIV Deck companion app"
 authors = ["Isaac Vianna"]
 edition = "2024"
@@ -18,6 +18,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 tauri = { version = "2", features = ["tray-icon", "image-png", "macos-private-api"] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }

@@ -28,7 +28,7 @@ O toque tem o seu próprio barramento SPI (pinos 4, 5, 6), por isso nenhum pino 
 ## Gravar
 
 **Sem instalar nada:** no Chrome ou Edge abra https://espressif.github.io/esptool-js/ , ligue a placa no
-USB-C, clique em Connect, endereço `0x0`, escolha `DIVDeckPro_firmware_0.5.0_completo.bin` e Program.
+USB-C, clique em Connect, endereço `0x0`, escolha `DIVDeckPro_firmware_0.6.0_completo.bin` e Program.
 Se a porta não aparecer: segure BOOT, toque em RST e solte BOOT.
 
 **Com PlatformIO:** abra esta pasta e clique em Upload.

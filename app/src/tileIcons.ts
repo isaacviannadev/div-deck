@@ -110,8 +110,8 @@ export async function drawKeyIcon(g: CanvasRenderingContext2D, k: KeyConfig, siz
 // The Pro draws whatever we send: the full tile (background, picture, label), anti-aliased, as
 // 86 x 96 RGB565 big-endian. Same look as the tiles in the app, much nicer than the deck's own fonts.
 
-export const FACE_W = 86, FACE_H = 96;
-const FACE_VERSION = "f2";
+export const FACE_W = 86, FACE_H = 90;
+const FACE_VERSION = "f3";
 
 const SANS = '-apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif';
 const SANS_D = '-apple-system, "SF Pro Display", "Segoe UI", system-ui, sans-serif';
@@ -175,7 +175,7 @@ export async function drawFace(g: CanvasRenderingContext2D, k: KeyConfig, profil
   const light = lumOf(base) > 0.72;
   const fg = light ? "#111" : "#fff";
   const label = faceLabel(k, profiles);
-  const cy = label ? 39 : H / 2;
+  const cy = label ? 37 : H / 2;
 
   // picture: app icon / brand / emoji / own image, else the action's symbol
   const PIC = label ? 44 : 52;
