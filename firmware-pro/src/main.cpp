@@ -537,6 +537,8 @@ static void handleLine(char *line) {
       Serial.printf("NEED %s\n", h); return;
     }
     Serial.println("OK");
+  } else if (!strcmp(cmd, "IP") && rest) {          // prefetch offer: ask for it only if we don't have it
+    if (fsOk && strlen(rest) < sizeof stageHash && !LittleFS.exists(iconPath(rest))) Serial.printf("WANT %s\n", rest);
   } else if (!strcmp(cmd, "IB") && rest) {          // face chunk -> RAM (no flash writes per chunk)
     char *sp = strchr(rest, ' ');
     if (!sp) return;

@@ -132,7 +132,27 @@ pub(crate) fn on_deck_connected(app: &AppHandle, link: &LinkInfo) {
         st.active.lock().unwrap().insert(link.id.clone(), wanted_profile(&cfg, &deck, &front));
     }
     push_deck(app, &link.id);
+    prefetch_faces(app, &link.id);
     emit_decks(app);
+}
+
+/// Offer every profile's tile faces to a Pro in the background ("IP"): it answers WANT for the ones
+/// it doesn't have yet, and those are sent after anything the screen needs right now. After that,
+/// switching profiles never waits for a transfer.
+pub(crate) fn prefetch_faces(app: &AppHandle, id: &str) {
+    let st = app.state::<AppState>();
+    if st.decks.info(id).map(|l| l.model != "pro").unwrap_or(true) {
+        return;
+    }
+    let mut seen = std::collections::HashSet::new();
+    let map = st.icon_map.lock().unwrap().clone();
+    for hashes in map.values() {
+        for h in hashes.iter().flatten() {
+            if seen.insert(h.clone()) && st.tile_icons.join(h).exists() {
+                st.decks.send(id, format!("IP {h}"));
+            }
+        }
+    }
 }
 
 pub(crate) fn on_deck_disconnected(app: &AppHandle, id: &str) {
@@ -543,6 +563,9 @@ fn set_icon_map(app: AppHandle, st: tauri::State<AppState>, map: HashMap<String,
             let _ = std::fs::write(st.tile_icons.join("index.json"), json);
         }
         push_all(&app);
+        for l in st.decks.connected() {
+            prefetch_faces(&app, &l.id);
+        }
     }
 }
 

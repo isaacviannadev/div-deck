@@ -284,6 +284,9 @@ function Main({ initial }: { initial: AppStateDto }) {
     selectProfile(rest[0].id);
     toast.success(`Perfil “${victim.name}” apagado`, { description: "Salve para confirmar.", action: { label: "Desfazer", onClick: () => undoRef.current() } });
   };
+  /** The icon for a profile: the first of its linked apps that is installed here (presets also list
+   *  other platforms' ids and alternative builds, e.g. VS Code Insiders, which may not be). */
+  const profileApp = (p: Profile) => p.apps.find((b) => apps.some((a) => a.bundleId === b)) ?? null;
   const linkApp = (bundleId: string | null) => {
     if (!bundleId) return;
     const owner = presetOwner(bundleId);
@@ -372,8 +375,8 @@ function Main({ initial }: { initial: AppStateDto }) {
         <nav className="profiles">
           {config.profiles.map((p) => (
             <button key={p.id} className={`profile ${p.id === profile.id ? "on" : ""}`} onClick={() => selectProfile(p.id)}>
-              {p.apps[0]
-                ? <AppIcon bundleId={p.apps[0]} size={18} />
+              {profileApp(p)
+                ? <AppIcon bundleId={profileApp(p)!} size={18} />
                 : <span className="profile-glyph" style={{ background: profileColor(p) }}><Icon name="app" size={11} /></span>}
               <span className="profile-name">{p.name}</span>
               {decks.some((d) => d.connected && d.active === p.id) && (

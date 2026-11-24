@@ -240,10 +240,17 @@ fn session(app: &AppHandle, decks: &Decks, mut port: Box<dyn SerialPort>, info: 
         match reader.poll(port.as_mut()) {
             Ok(lines) => {
                 for line in lines {
-                    if let Some(hash) = line.strip_prefix("NEED ") {
+                    // NEED: on screen now -> front of the queue; WANT: background prefetch -> back
+                    let need = line.strip_prefix("NEED ");
+                    if let Some(hash) = need.or_else(|| line.strip_prefix("WANT ")) {
                         let h = hash.trim().to_string();
-                        if !faces.contains(&h) && busy.as_ref().map(|b| &b.0) != Some(&h) {
-                            faces.push_back(h);
+                        if busy.as_ref().map(|b| &b.0) != Some(&h) {
+                            if need.is_some() {
+                                faces.retain(|x| x != &h);
+                                faces.push_front(h);
+                            } else if !faces.contains(&h) {
+                                faces.push_back(h);
+                            }
                         }
                         continue;
                     }
