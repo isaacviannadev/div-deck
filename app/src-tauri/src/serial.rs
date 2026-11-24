@@ -208,6 +208,11 @@ fn session(app: &AppHandle, decks: &Decks, mut port: Box<dyn SerialPort>, info: 
                 break 'session;
             }
             wrote = true;
+            if line.starts_with("IB ") {
+                // face chunks: give the deck time to write each one to flash
+                let _ = port.flush();
+                thread::sleep(Duration::from_millis(10));
+            }
         }
         if wrote {
             let _ = port.flush();

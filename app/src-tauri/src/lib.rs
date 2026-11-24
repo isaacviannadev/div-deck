@@ -296,7 +296,7 @@ pub(crate) fn on_icon_needed(app: &AppHandle, deck: &str, hash: &str) {
         return;
     }
     let Ok(bytes) = std::fs::read(st.tile_icons.join(hash)) else { return };
-    for chunk in bytes.chunks(384) {
+    for chunk in bytes.chunks(768) {
         st.decks.send(deck, format!("IB {hash} {}", base64::engine::general_purpose::STANDARD.encode(chunk)));
     }
     st.decks.send(deck, format!("IE {hash}"));
@@ -502,7 +502,7 @@ fn icons_missing(st: tauri::State<AppState>, hashes: Vec<String>) -> Vec<String>
     hashes.into_iter().filter(|h| h.chars().all(|c| c.is_ascii_alphanumeric()) && !st.tile_icons.join(h).exists()).collect()
 }
 
-/// Store one rendered icon (56 x 56 BGRA, base64).
+/// Store one rendered tile face (86 x 96 RGB565 big-endian, base64).
 #[tauri::command]
 fn put_icon(st: tauri::State<AppState>, hash: String, data: String) -> Result<(), String> {
     use base64::Engine;
@@ -510,7 +510,7 @@ fn put_icon(st: tauri::State<AppState>, hash: String, data: String) -> Result<()
         return Err("hash inválido".into());
     }
     let bytes = base64::engine::general_purpose::STANDARD.decode(data).map_err(|e| e.to_string())?;
-    if bytes.len() != 56 * 56 * 4 {
+    if bytes.len() != 86 * 96 * 2 {
         return Err("tamanho inválido".into());
     }
     std::fs::create_dir_all(&st.tile_icons).map_err(|e| e.to_string())?;

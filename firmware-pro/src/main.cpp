@@ -98,9 +98,12 @@ struct Tile {
   char text[16];
   char icon[12];     // icon hash ("" = none): file /i/<hash>
 };
-static const int ICON = 56;
-static const size_t ICON_BYTES = ICON * ICON * 4;
-static uint8_t *iconBuf[KEYS];   // loaded icon per tile (PSRAM), null = draw the glyph
+// Tile faces: the app renders each whole tile (background, icon, text, anti-aliased) as an
+// 86 x 96 RGB565 (big-endian) picture, cached in flash by hash. Without one the deck draws its own.
+static const int FACE_W = 86, FACE_H = 96;
+static const size_t ICON_BYTES = FACE_W * FACE_H * 2;
+static bool haveFace[KEYS];
+static uint16_t faceBuf[FACE_W * FACE_H];
 static bool fsOk = false;
 static Tile tiles[KEYS];
 static bool tileDirty[KEYS];
@@ -150,15 +153,22 @@ static void saveSettings() {
 // ---------------------------------------------------------------- icons (flash cache by hash)
 static String iconPath(const char *hash) { return String("/i/") + hash; }
 
-static bool loadIcon(uint8_t k) {
-  if (!tiles[k].icon[0] || !fsOk) { if (iconBuf[k]) { free(iconBuf[k]); iconBuf[k] = nullptr; } return false; }
+static bool loadIcon(uint8_t k) {   // just checks the face file is there and complete
+  haveFace[k] = false;
+  if (!tiles[k].icon[0] || !fsOk) return false;
   File f = LittleFS.open(iconPath(tiles[k].icon), "r");
-  if (!f || f.size() != ICON_BYTES) { if (f) f.close(); return false; }
-  if (!iconBuf[k]) iconBuf[k] = (uint8_t *)ps_malloc(ICON_BYTES);
-  if (!iconBuf[k]) iconBuf[k] = (uint8_t *)malloc(ICON_BYTES);
-  bool ok = iconBuf[k] && f.read(iconBuf[k], ICON_BYTES) == ICON_BYTES;
+  if (!f) return false;
+  haveFace[k] = f.size() == ICON_BYTES;
   f.close();
-  if (!ok && iconBuf[k]) { free(iconBuf[k]); iconBuf[k] = nullptr; }
+  return haveFace[k];
+}
+
+static bool drawFace(uint8_t k, int x, int y) {
+  File f = LittleFS.open(iconPath(tiles[k].icon), "r");
+  if (!f) return false;
+  bool ok = f.read((uint8_t *)faceBuf, ICON_BYTES) == ICON_BYTES;
+  f.close();
+  if (ok) tft.pushImage(x, y, FACE_W, FACE_H, (const lgfx::swap565_t *)faceBuf);
   return ok;
 }
 
@@ -238,14 +248,20 @@ static void drawTile(uint8_t k, bool pressed) {
   uint16_t bg = empty ? tft.color565(0x15, 0x16, 0x1a) : rgb(base, f);
   uint16_t fg = empty ? tft.color565(0x40, 0x40, 0x44) : (isLight(base, f) ? TFT_BLACK : TFT_WHITE);
   tft.fillRect(x - 2, y - 2, w + 4, h + 4, TFT_BLACK);
+  if (haveFace[k] && drawFace(k, x + (w - FACE_W) / 2, y + (h - FACE_H) / 2)) {
+    if (pressed) {   // pressed: the app's press colour as a ring, plus a dimmed face
+      uint16_t pc = rgb(pressColor);
+      for (int i = 0; i < 3; i++) tft.drawRoundRect(x + i, y + i, w - 2 * i, h - 2 * i, 14 - i, pc);
+    }
+    return;
+  }
   int inset = pressed ? 3 : 0;   // pressed tiles shrink a little
   tft.fillRoundRect(x + inset, y + inset, w - 2 * inset, h - 2 * inset, 14, bg);
   if (empty) return;
   // soft highlight on the top half, like the app
   if (!pressed) tft.fillRoundRect(x + 2, y + 2, w - 4, h / 2 - 2, 12, rgb(base, 0.86f));
   int gy = y + h / 2 - (t.label[0] ? 9 : 0);
-  if (iconBuf[k]) tft.pushAlphaImage(x + (w - ICON) / 2, gy - ICON / 2, ICON, ICON, (lgfx::argb8888_t *)iconBuf[k]);
-  else drawGlyph(t, x + w / 2, gy, w, fg);
+  drawGlyph(t, x + w / 2, gy, w, fg);
   if (t.label[0]) {
     tft.setFont(&fonts::FreeSans9pt7b);
     tft.setTextColor(fg);
@@ -297,6 +313,7 @@ static void pollTouch() {
   static int8_t candidate = -1;
   lgfx::touch_point_t tp;
   bool down = tft.getTouch(&tp) > 0;
+  if (down) tp.x = tft.width() - 1 - tp.x;   // this panel's touch X runs the other way
   int8_t k = down ? tileAt(tp.x, tp.y) : -1;
   if (down && k >= 0) {
     misses = 0;
@@ -387,9 +404,9 @@ static void handleLine(char *line) {
     if (strcmp(tiles[k].icon, h)) {
       strlcpy(tiles[k].icon, h, sizeof tiles[k].icon);
       tileDirty[k] = true;
-      if (!h[0] || !loadIcon(k)) { if (iconBuf[k]) { free(iconBuf[k]); iconBuf[k] = nullptr; } }
-      if (h[0] && !iconBuf[k]) { Serial.printf("NEED %s\n", h); return; }
-    } else if (h[0] && !iconBuf[k] && !loadIcon(k)) {
+      loadIcon(k);
+      if (h[0] && !haveFace[k]) { Serial.printf("NEED %s\n", h); return; }
+    } else if (h[0] && !haveFace[k] && !loadIcon(k)) {
       Serial.printf("NEED %s\n", h); return;
     }
     Serial.println("OK");
@@ -397,7 +414,7 @@ static void handleLine(char *line) {
     char *sp = strchr(rest, ' ');
     if (!sp || !fsOk) { Serial.println("ERR icon"); return; }
     *sp = '\0';
-    static uint8_t bin[400];
+    static uint8_t bin[800];
     size_t n = 0;
     if (mbedtls_base64_decode(bin, sizeof bin, &n, (const unsigned char *)sp + 1, strlen(sp + 1)) != 0) { Serial.println("ERR b64"); return; }
     File f = LittleFS.open(iconPath(rest) + ".part", "a");
@@ -431,7 +448,7 @@ static void handleLine(char *line) {
 }
 
 static void pollSerial() {
-  static char buf[640];
+  static char buf[1280];
   static uint16_t len = 0;
   while (Serial.available()) {
     char ch = Serial.read();
@@ -443,6 +460,7 @@ static void pollSerial() {
 
 // ---------------------------------------------------------------- main
 void setup() {
+  Serial.setRxBufferSize(32768);   // a whole profile + face chunks arrive in bursts
   Serial.begin(115200);
   neopixelWrite(PIN_RGB, 0, 0, 12);
   loadSettings();
