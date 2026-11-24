@@ -116,6 +116,8 @@ static uint8_t brightness = 48, rotation = 1;
 static uint32_t lastPing = 0;
 static bool wasStandalone = true;
 static int8_t touched = -1;
+static bool locked = false;       // swipe down from the top edge: screen locked, logo animation
+static uint32_t lockFrame = 0;
 
 // ---------------------------------------------------------------- persistence
 static void loadSettings() {
@@ -276,6 +278,7 @@ static void drawTile(uint8_t k, bool pressed) {
 }
 
 static void drawAll() {
+  if (locked) { for (uint8_t k = 0; k < KEYS; k++) tileDirty[k] = true; return; }
   tft.startWrite();
   tft.fillScreen(TFT_BLACK);
   for (uint8_t k = 0; k < KEYS; k++) { drawTile(k, k == touched); tileDirty[k] = false; }
@@ -283,6 +286,7 @@ static void drawAll() {
 }
 
 static void drawDirty() {
+  if (locked) return;
   tft.startWrite();
   for (uint8_t k = 0; k < KEYS; k++) if (tileDirty[k]) { drawTile(k, k == touched); tileDirty[k] = false; }
   tft.endWrite();
@@ -311,12 +315,75 @@ static int8_t tileAt(int x, int y) {
   return -1;
 }
 
+// ---------------------------------------------------------------- lock screen
+// Swipe down from the top edge locks the deck (no key presses, the logo breathes, light dims).
+// Swipe up anywhere unlocks.
+static const int8_t LOGO_N = 12;
+static const float LOGO_R[LOGO_N] = {1.55, 1.3, 1.7, 1.42, 1.38, 1.72, 1.28, 1.6, 1.68, 1.45, 1.58, 1.25};
+
+static void drawLockFrame(bool full) {
+  int cx = tft.width() / 2, cy = tft.height() / 2 - 22;
+  tft.startWrite();
+  if (full) {
+    tft.fillScreen(TFT_BLACK);
+    tft.setTextColor(TFT_WHITE); tft.setTextDatum(middle_center);
+    tft.setFont(&fonts::FreeSansBold12pt7b);
+    tft.drawString("DIV Deck Pro", cx, cy + 66);
+    tft.setTextColor(tft.color565(0x60, 0x60, 0x66));
+    tft.setFont(&fonts::Font2);
+    tft.drawString("deslize para cima para desbloquear", cx, tft.height() - 18);
+  }
+  float t = lockFrame * 0.11f;
+  for (int i = 0; i < LOGO_N; i++) {
+    int col = i % 4, row = i / 4;
+    int x = cx - 33 + col * 22, y = cy - 22 + row * 22;
+    float wave = 0.5f + 0.5f * sinf(t - (col + row) * 0.7f);       // diagonal ripple through the grid
+    float r = LOGO_R[i] * (3.4f + 1.5f * wave);
+    uint8_t v = 150 + 105 * wave;
+    tft.fillRect(x - 10, y - 10, 21, 21, TFT_BLACK);
+    tft.fillCircle(x, y, (int)(r + 0.5f), tft.color565(v, v, v));
+  }
+  tft.endWrite();
+}
+
+static void setLocked(bool on) {
+  if (on == locked) return;
+  locked = on;
+  if (touched >= 0) { Serial.printf("U %d\n", touched); touched = -1; }
+  Serial.printf("LOCK %d\n", on ? 1 : 0);
+  if (on) {
+    tft.setBrightness(map(min<uint8_t>(brightness, 96), 0, 96, 8, 255) / 3 + 4);
+    lockFrame = 0;
+    drawLockFrame(true);
+  } else {
+    applyBrightness();
+    drawAll();
+  }
+}
+
 static void pollTouch() {
   static uint8_t hits = 0, misses = 0;
   static int8_t candidate = -1;
+  static bool tracking = false, edge = false;
+  static int sy = 0;
   lgfx::touch_point_t tp;
   bool down = tft.getTouch(&tp) > 0;
   if (down) tp.x = tft.width() - 1 - tp.x;   // this panel's touch X runs the other way
+
+  // gestures
+  if (down && !tracking) { tracking = true; sy = tp.y; edge = !locked && tp.y < 22; }
+  if (down && tracking) {
+    if (edge && tp.y - sy > 70) { edge = false; setLocked(true); }
+    else if (locked && sy - tp.y > 80) { setLocked(false); tracking = true; edge = false; sy = -1000; }
+  }
+  if (!down && tracking && ++misses >= 3) { tracking = false; edge = false; }
+  if (locked || edge || sy == -1000) {        // no key presses while locked or swiping from the edge
+    if (!down) { if (!tracking) sy = 0; misses = min<uint8_t>(misses, 3); }
+    candidate = -1; hits = 0;
+    if (!tracking) misses = 0;
+    return;
+  }
+
   int8_t k = down ? tileAt(tp.x, tp.y) : -1;
   if (down && k >= 0) {
     misses = 0;
@@ -329,7 +396,7 @@ static void pollTouch() {
     }
   } else {
     candidate = -1; hits = 0;
-    if (touched >= 0 && ++misses >= 3) {     // ~45 ms without touch = released
+    if (touched >= 0 && misses >= 3) {       // ~45 ms without touch = released
       int8_t k0 = touched; touched = -1; misses = 0;
       Serial.printf("U %d\n", k0);
       tft.startWrite(); drawTile(k0, false); tft.endWrite();
@@ -429,7 +496,8 @@ static void handleLine(char *line) {
     if (strcmp(stageHash, rest) || stageLen != ICON_BYTES) { stageHash[0] = '\0'; Serial.printf("FAIL %s\n", rest); return; }
     tft.startWrite();
     for (uint8_t k = 0; k < KEYS; k++) if (!strcmp(tiles[k].icon, rest)) {
-      haveFace[k] = true; tileDirty[k] = false;
+      haveFace[k] = true; tileDirty[k] = locked;
+      if (locked) continue;
       int x = tileX(k), y = tileY(k);
       tft.fillRect(x - 2, y - 2, tileW() + 4, tileH() + 4, TFT_BLACK);
       tft.pushImage(x + (tileW() - FACE_W) / 2, y + (tileH() - FACE_H) / 2, FACE_W, FACE_H, (const lgfx::swap565_t *)stage);
@@ -492,6 +560,8 @@ void loop() {
   uint32_t now = millis();
   pollSerial();
   if (now - lastTouch >= 15) { lastTouch = now; pollTouch(); }
+  static uint32_t lastAnim = 0;
+  if (locked && now - lastAnim >= 33) { lastAnim = now; lockFrame++; drawLockFrame(false); }
   // small status LED on the SuperMini: green while the app is connected
   bool standalone = now - lastPing > HOST_TIMEOUT_MS;
   if (standalone != wasStandalone) {
