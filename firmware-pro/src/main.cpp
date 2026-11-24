@@ -104,6 +104,9 @@ static const int FACE_W = 86, FACE_H = 96;
 static const size_t ICON_BYTES = FACE_W * FACE_H * 2;
 static bool haveFace[KEYS];
 static uint16_t faceBuf[FACE_W * FACE_H];
+static uint8_t stage[FACE_W * FACE_H * 2 + 4];   // face being received
+static size_t stageLen = 0;
+static char stageHash[12] = "";
 static bool fsOk = false;
 static Tile tiles[KEYS];
 static bool tileDirty[KEYS];
@@ -410,28 +413,35 @@ static void handleLine(char *line) {
       Serial.printf("NEED %s\n", h); return;
     }
     Serial.println("OK");
-  } else if (!strcmp(cmd, "IB") && rest) {
+  } else if (!strcmp(cmd, "IB") && rest) {          // face chunk -> RAM (no flash writes per chunk)
     char *sp = strchr(rest, ' ');
-    if (!sp || !fsOk) { Serial.println("ERR icon"); return; }
+    if (!sp) return;
     *sp = '\0';
-    static uint8_t bin[800];
+    if (strcmp(stageHash, rest)) { strlcpy(stageHash, rest, sizeof stageHash); stageLen = 0; }
     size_t n = 0;
-    if (mbedtls_base64_decode(bin, sizeof bin, &n, (const unsigned char *)sp + 1, strlen(sp + 1)) != 0) { Serial.println("ERR b64"); return; }
-    File f = LittleFS.open(iconPath(rest) + ".part", "a");
-    if (!f) { Serial.println("ERR fs"); return; }
-    f.write(bin, n); f.close();
-    Serial.println("OK");
-  } else if (!strcmp(cmd, "IE") && rest) {
-    String part = iconPath(rest) + ".part", fin = iconPath(rest);
-    File f = LittleFS.open(part, "r");
-    size_t sz = f ? f.size() : 0; if (f) f.close();
-    if (sz != ICON_BYTES) { LittleFS.remove(part); Serial.println("ERR size"); return; }
-    LittleFS.remove(fin);
-    LittleFS.rename(part, fin);
-    for (uint8_t k = 0; k < KEYS; k++) if (!strcmp(tiles[k].icon, rest)) { loadIcon(k); tileDirty[k] = true; }
-    drawDirty();
-    dropOldIcons();
-    Serial.println("OK");
+    if (stageLen > ICON_BYTES ||
+        mbedtls_base64_decode(stage + stageLen, ICON_BYTES - stageLen, &n, (const unsigned char *)sp + 1, strlen(sp + 1)) != 0) {
+      stageLen = ICON_BYTES + 1;   // poisoned: IE will report it
+      return;
+    }
+    stageLen += n;
+  } else if (!strcmp(cmd, "IE") && rest) {          // face complete: show it now, then keep it in flash
+    if (strcmp(stageHash, rest) || stageLen != ICON_BYTES) { stageHash[0] = '\0'; Serial.printf("FAIL %s\n", rest); return; }
+    tft.startWrite();
+    for (uint8_t k = 0; k < KEYS; k++) if (!strcmp(tiles[k].icon, rest)) {
+      haveFace[k] = true; tileDirty[k] = false;
+      int x = tileX(k), y = tileY(k);
+      tft.fillRect(x - 2, y - 2, tileW() + 4, tileH() + 4, TFT_BLACK);
+      tft.pushImage(x + (tileW() - FACE_W) / 2, y + (tileH() - FACE_H) / 2, FACE_W, FACE_H, (const lgfx::swap565_t *)stage);
+    }
+    tft.endWrite();
+    if (fsOk) {
+      dropOldIcons();
+      File f = LittleFS.open(iconPath(rest), "w");
+      if (f) { f.write(stage, ICON_BYTES); f.close(); }
+    }
+    stageHash[0] = '\0'; stageLen = 0;
+    Serial.printf("SAVED %s\n", rest);
   } else if (!strcmp(cmd, "N")) {
     strlcpy(profileName, rest ? rest : "", sizeof profileName); Serial.println("OK");
   } else if (!strcmp(cmd, "O") && rest) {

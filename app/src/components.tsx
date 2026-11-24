@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { COLS, isWindows, type Action, type AppInfo, type DeckModel, type KeyConfig, type KeyIcon, type Profile } from "./api";
-import { EMOJI, brands, drawKeyIcon, imageFileToIcon } from "./tileIcons";
+import { EMOJI, FACE_H, FACE_W, brands, drawFace, drawKeyIcon, imageFileToIcon } from "./tileIcons";
 import { confirmDialog, toast } from "./feedback";
 import {
   ACTION_TYPES, AppIcon, Icon, MEDIA, MODS, STEP_TYPES, actionIcon, actionSummary, defaultAction, formatShortcut, keyFromEvent, useApps,
@@ -112,6 +112,30 @@ function KeyGlyph({ k, size }: { k: KeyConfig; size: number }) {
   return <Icon name={actionIcon(a)} size={Math.round(size * 0.72)} />;
 }
 
+/** A Pro tile drawn by the same code that renders the picture sent to the deck: what you see is what it shows. */
+function FaceTile({ k, profiles }: { k: KeyConfig; profiles: Profile[] }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const apps = useApps();
+  const sig = JSON.stringify([k, profiles.map((p) => [p.id, p.name]), apps.length]);
+  useEffect(() => {
+    const c = ref.current; if (!c) return;
+    let alive = true;
+    const S = 3;
+    const off = document.createElement("canvas"); off.width = FACE_W * S; off.height = FACE_H * S;
+    const g = off.getContext("2d")!; g.scale(S, S);
+    drawFace(g, k, profiles, apps).then((ok) => {
+      if (!alive) return;
+      const out = c.getContext("2d")!;
+      c.width = off.width; c.height = off.height;
+      if (ok) out.drawImage(off, 0, 0);
+      else { out.fillStyle = "#15161a"; out.beginPath(); out.roundRect(0, 0, c.width, c.height, 15 * S); out.fill(); }
+    }).catch(() => {});
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sig]);
+  return <canvas ref={ref} className="face" width={FACE_W * 3} height={FACE_H * 3} />;
+}
+
 export function Deck({ model = "mx", profile, profiles, selected, pressed, pressColor, onSelect }: {
   model?: DeckModel; profile: Profile; profiles: Profile[]; selected: number; pressed: Set<number>; pressColor: string; onSelect: (k: number) => void;
 }) {
@@ -126,11 +150,13 @@ export function Deck({ model = "mx", profile, profiles, selected, pressed, press
               className={`key ${i === selected ? "sel" : ""} ${empty ? "empty" : ""} ${isPressed ? "down" : ""}`}
               style={{ ["--led" as string]: `#${isPressed ? pressColor : k.color}` }}
               onClick={() => onSelect(i)} title={actionSummary(k.action, profiles)}>
-              <span className="led" />
-              <span className="key-glyph">
-                <KeyGlyph k={k} size={30} />
-              </span>
-              <span className="key-label">{k.label || (empty ? "" : actionSummary(k.action, profiles))}</span>
+              {model === "pro" ? <FaceTile k={k} profiles={profiles} /> : <>
+                <span className="led" />
+                <span className="key-glyph">
+                  <KeyGlyph k={k} size={30} />
+                </span>
+                <span className="key-label">{k.label || (empty ? "" : actionSummary(k.action, profiles))}</span>
+              </>}
             </button>
           );
         })}

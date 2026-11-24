@@ -396,3 +396,10 @@ button.device:hover { background: var(--fill); }
 .sheet-actions .btn { justify-content: center; }
 .btn.destructive { background: #ff453a; color: #fff; }
 .btn.destructive:hover { background: #ff5a50; }
+
+/* Pro tiles: the exact picture the deck shows */
+.deck.pro .key { width: 86px; height: 96px; padding: 0; background: #000; box-shadow: none; border-radius: 15px; }
+.deck.pro .key::before { display: none; }
+.deck.pro .key .face { display: block; width: 86px; height: 96px; border-radius: 15px; }
+.deck.pro .key.down { transform: scale(.96); box-shadow: 0 0 0 3px #fff inset; }
+.deck.pro .key.down .face { filter: brightness(1.15); }

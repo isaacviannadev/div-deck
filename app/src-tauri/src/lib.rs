@@ -289,18 +289,20 @@ pub(crate) fn push_deck(app: &AppHandle, id: &str) {
     }
 }
 
-/// The Pro asked for an icon it doesn't have yet: stream it in base64 chunks.
-pub(crate) fn on_icon_needed(app: &AppHandle, deck: &str, hash: &str) {
+/// The lines that send one tile face to a Pro (base64 chunks, then the end marker).
+pub(crate) fn face_lines(app: &AppHandle, hash: &str) -> Option<Vec<String>> {
     use base64::Engine;
     let st = app.state::<AppState>();
     if !hash.chars().all(|c| c.is_ascii_alphanumeric()) {
-        return;
+        return None;
     }
-    let Ok(bytes) = std::fs::read(st.tile_icons.join(hash)) else { return };
-    for chunk in bytes.chunks(384) {
-        st.decks.send(deck, format!("IB {hash} {}", base64::engine::general_purpose::STANDARD.encode(chunk)));
-    }
-    st.decks.send(deck, format!("IE {hash}"));
+    let bytes = std::fs::read(st.tile_icons.join(hash)).ok()?;
+    let mut out: Vec<String> = bytes
+        .chunks(384)
+        .map(|c| format!("IB {hash} {}", base64::engine::general_purpose::STANDARD.encode(c)))
+        .collect();
+    out.push(format!("IE {hash}"));
+    Some(out)
 }
 
 fn push_all(app: &AppHandle) {

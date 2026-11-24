@@ -201,6 +201,8 @@ fn session(app: &AppHandle, decks: &Decks, mut port: Box<dyn SerialPort>, info: 
     crate::on_deck_connected(app, &info);
 
     let mut last_ping = Instant::now();
+    let mut faces: std::collections::VecDeque<String> = Default::default();
+    let mut busy: Option<(String, Instant)> = None;
     'session: loop {
         let mut wrote = false;
         while let Ok(line) = rx.try_recv() {
@@ -208,10 +210,22 @@ fn session(app: &AppHandle, decks: &Decks, mut port: Box<dyn SerialPort>, info: 
                 break 'session;
             }
             wrote = true;
-            if line.starts_with("IB ") {
-                // face chunks: give the deck time to write each one to flash
-                let _ = port.flush();
-                thread::sleep(Duration::from_millis(6));
+        }
+        // tile faces the deck asked for: one at a time, the next only after it says SAVED
+        if busy.as_ref().is_some_and(|(_, t)| t.elapsed() > Duration::from_secs(3)) {
+            busy = None;
+        }
+        if busy.is_none() {
+            while let Some(h) = faces.pop_front() {
+                let Some(lines) = crate::face_lines(app, &h) else { continue };
+                for l in lines {
+                    if port.write_all(format!("{l}\n").as_bytes()).is_err() {
+                        break 'session;
+                    }
+                }
+                wrote = true;
+                busy = Some((h, Instant::now()));
+                break;
             }
         }
         if wrote {
@@ -227,7 +241,16 @@ fn session(app: &AppHandle, decks: &Decks, mut port: Box<dyn SerialPort>, info: 
             Ok(lines) => {
                 for line in lines {
                     if let Some(hash) = line.strip_prefix("NEED ") {
-                        crate::on_icon_needed(app, &id, hash.trim());
+                        let h = hash.trim().to_string();
+                        if !faces.contains(&h) && busy.as_ref().map(|b| &b.0) != Some(&h) {
+                            faces.push_back(h);
+                        }
+                        continue;
+                    }
+                    if let Some(h) = line.strip_prefix("SAVED ").or_else(|| line.strip_prefix("FAIL ")) {
+                        if busy.as_ref().is_some_and(|b| b.0 == h.trim()) {
+                            busy = None;
+                        }
                         continue;
                     }
                     let mut it = line.split_whitespace();
