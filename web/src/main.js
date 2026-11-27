@@ -219,12 +219,12 @@ function initThree() {
   const scrTex = new THREE.CanvasTexture(scr); scrTex.colorSpace = THREE.SRGBColorSpace; scrTex.anisotropy = 8;
   const screen = new THREE.Mesh(new THREE.PlaneGeometry(VA[0], VA[1]), new THREE.MeshBasicMaterial({ map: scrTex, toneMapped: false }));
   screen.position.z = 14.27; pro.glass.add(screen);
-  { const b = new THREE.Mesh(new THREE.BoxGeometry(22.5, 18, 1.0), mat.devkit); b.position.set(59.6 - 11.25, 0, 4.0); pro.board.add(b);
-    const usb = new THREE.Mesh(new THREE.BoxGeometry(7.4, 8.9, 3.2), mat.silver); usb.position.set(59.6 - 3.4, 0, 6.1); pro.board.add(usb);
-    const chip = new THREE.Mesh(new THREE.BoxGeometry(7, 7, 0.9), mat.sw); chip.position.set(46, 0, 4.9); pro.board.add(chip); }
-  { const body = new THREE.Mesh(new THREE.CylinderGeometry(2.75, 2.75, 73, 24), pmat.pen); body.rotation.z = Math.PI / 2; body.position.x = -6;
-    const tip = new THREE.Mesh(new THREE.ConeGeometry(2.75, 12, 24), pmat.pen); tip.rotation.z = -Math.PI / 2; tip.position.x = 36.5;
-    pro.pen.add(body, tip); pro.pen.position.set(-4, -28.5, 3.15); }
+  { const b = new THREE.Mesh(new THREE.BoxGeometry(23.5, 18, 1.0), mat.devkit); b.position.set(46.85, 0, -11.4); pro.board.add(b);
+    const usb = new THREE.Mesh(new THREE.BoxGeometry(7.4, 8.9, 3.2), mat.silver); usb.position.set(56.2, 0, -9.3); pro.board.add(usb);
+    const chip = new THREE.Mesh(new THREE.BoxGeometry(7, 7, 0.9), mat.sw); chip.position.set(46, 0, -10.5); pro.board.add(chip); }
+  { const body = new THREE.Mesh(new THREE.CylinderGeometry(2.75, 2.75, 80, 24), pmat.pen); body.rotation.z = Math.PI / 2; body.position.x = -6;
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(2.75, 12, 24), pmat.pen); tip.rotation.z = -Math.PI / 2; tip.position.x = 40;
+    pro.pen.add(body, tip); pro.pen.position.set(-4, 34.4, 5); }
   const proPick = [screen];
   let proCtr = null;
   new GLTFLoader().load('assets/divdeck-pro.glb', (gltf) => {
@@ -236,6 +236,7 @@ function initThree() {
     faceTouch = new THREE.Mesh(new THREE.PlaneGeometry(bb.max.x - bb.min.x, bb.max.y - bb.min.y),
       new THREE.MeshStandardMaterial({ map: faceTex.pro[0], transparent: true, roughness: 0.5, alphaTest: 0.5 }));
     faceTouch.position.set((bb.min.x + bb.max.x) / 2, (bb.min.y + bb.max.y) / 2, bb.max.z + 0.05);
+    faceTouch.visible = faceState.pro !== 0;
     pro.bezel.add(faceTouch);
     const foot = get('foot'); foot.material = pmat.white; pro.foot.add(foot);
     proRoot.scale.setScalar(MM); proRoot.position.set(0, 0, 0); proRoot.updateMatrixWorld(true);
@@ -327,17 +328,17 @@ function initThree() {
   const loadTex = (u) => { const t = texLoader.load(u); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; };
   const FACES = {
     mx: ['basica', 'codigo', 'topografica', 'futurista', 'gamer'],
-    pro: ['touch-code-grafite', 'touch-code-creme', 'touch-sup-grafite', 'touch-sup-creme'],
+    pro: [null, 'touch-code-grafite', 'touch-code-creme', 'touch-sup-grafite', 'touch-sup-creme'],
   };
   const FACE_NAMES = {
     mx: ['Básica', 'Código', 'Topográfica', 'Futurista', 'Gamer'],
-    pro: ['Code · grafite', 'Code · creme', 'Superfície · grafite', 'Superfície · creme'],
+    pro: ['Lisa', 'Code · grafite', 'Code · creme', 'Superfície · grafite', 'Superfície · creme'],
   };
   const faceTex = {
-    mx: FACES.mx.map((n) => loadTex(`assets/faces/mx-${n}.png`)),
-    pro: FACES.pro.map((n) => loadTex(`assets/faces/${n}.png`)),
+    mx: FACES.mx.map((n, i) => i ? loadTex(`assets/faces/mx-${n}.png`) : null),
+    pro: FACES.pro.map((n) => n ? loadTex(`assets/faces/${n}.png`) : null),
   };
-  let faceMx = null, faceTouch = null;
+  let faceMx = null, faceTouch = null, podInlay = null;
   const pod = new THREE.Group(); layers.cover.add(pod);
   const oled = document.createElement('canvas'); oled.width = 256; oled.height = 128;
   const oledTex = new THREE.CanvasTexture(oled); oledTex.colorSpace = THREE.SRGBColorSpace;
@@ -355,7 +356,7 @@ function initThree() {
     g.textAlign = 'right'; g.fillText(d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }), 242, 106);
     oledTex.needsUpdate = true;
   }
-  const faceState = { mx: 1, pro: 0, lift: 0 };
+  const faceState = { mx: 0, pro: 0, lift: 0 };
   const caps = [], capMats = [];
   const pick = []; // meshes for raycasting
   const state = { mix: model === 'pro' ? 1 : 0, p: 0, explode: 0, mx: 0, my: 0, tmx: 0, tmy: 0, hover: -1, profile: '', wave: 0, flash: new Array(15).fill(0) };
@@ -369,9 +370,10 @@ function initThree() {
     cover.geometry.computeBoundingBox();
     const cb = cover.geometry.boundingBox;
     faceMx = new THREE.Mesh(new THREE.PlaneGeometry(cb.max.x - cb.min.x, cb.max.y - cb.min.y),
-      new THREE.MeshStandardMaterial({ map: faceTex.mx[1], transparent: true, roughness: 0.55, alphaTest: 0.5 }));
+      new THREE.MeshStandardMaterial({ map: faceTex.mx[faceState.mx], transparent: true, roughness: 0.55, alphaTest: 0.5 }));
     faceMx.position.set((cb.min.x + cb.max.x) / 2, (cb.min.y + cb.max.y) / 2, cb.max.z + 0.05);
     faceMx.rotation.z = Math.PI;   // the renders are drawn from the front of the deck
+    faceMx.visible = faceState.mx !== 0;
     layers.cover.add(faceMx);
     // the OLED pod clips on behind the keys
     for (const n of ['pod_shell', 'pod_base', 'pod_glass']) {
@@ -389,7 +391,7 @@ function initThree() {
     { const t = texLoader.load('assets/pod_inlay.png'); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
       const a = { x0: 22.70, x1: 76.28, y0: -16.09, y1: 7.73, z: 13.6 };
       const m = new THREE.Mesh(new THREE.PlaneGeometry(a.x1 - a.x0, a.y1 - a.y0), new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, toneMapped: false }));
-      m.position.set((a.x0 + a.x1) / 2, (a.y0 + a.y1) / 2, a.z + 0.03); m.renderOrder = 2; pod.add(m); }
+      m.position.set((a.x0 + a.x1) / 2, (a.y0 + a.y1) / 2, a.z + 0.03); m.renderOrder = 2; m.visible = faceState.mx === 1; podInlay = m; pod.add(m); }
     const swGeo = get('switch').geometry, stemGeo = get('stem').geometry;
     const capGeos = [get('keycap1').geometry, get('keycap2').geometry, get('keycap3').geometry]; // Pro caps, sculpted per row
     for (let k = 0; k < 15; k++) {
@@ -515,15 +517,15 @@ function initThree() {
     const exp = exPro;
     // faces chapter: the face / cover lifts off, changes, and clicks back in
     const inFaces = p > 0.6 && p < 0.745;
-    const fi = inFaces ? clamp(Math.floor(((p - 0.6) / 0.145) * FACES[isPro ? 'pro' : 'mx'].length), 0, FACES[isPro ? 'pro' : 'mx'].length - 1) : (isPro ? 0 : 1);
+    const fi = inFaces ? clamp(Math.floor(((p - 0.6) / 0.145) * FACES[isPro ? 'pro' : 'mx'].length), 0, FACES[isPro ? 'pro' : 'mx'].length - 1) : 0;
     const want = isPro ? 'pro' : 'mx';
     if (faceState[want] !== fi || faceState.lift > 0.001) {
       if (faceState[want] !== fi) {
         faceState.lift = Math.min(1, faceState.lift + (reduceMotion ? 1 : 0.12));
         if (faceState.lift >= 1) {
           faceState[want] = fi;
-          if (want === 'mx' && faceMx) { faceMx.material.map = faceTex.mx[fi]; faceMx.material.needsUpdate = true; }
-          if (want === 'pro' && faceTouch) { faceTouch.material.map = faceTex.pro[fi]; faceTouch.material.needsUpdate = true; }
+          if (want === 'mx' && faceMx) { faceMx.material.map = faceTex.mx[fi]; faceMx.material.needsUpdate = true; faceMx.visible = fi !== 0; if (podInlay) podInlay.visible = fi === 1; }
+          if (want === 'pro' && faceTouch) { faceTouch.material.map = faceTex.pro[fi]; faceTouch.material.needsUpdate = true; faceTouch.visible = fi !== 0; }
         }
       } else faceState.lift = Math.max(0, faceState.lift - 0.08);
     }
@@ -694,3 +696,20 @@ fetch('https://api.github.com/repos/isaacviannadev/div-deck/releases/latest')
     }
   })
   .catch(() => {});
+
+// Packaging photos: preserve a normal image link when the browser lacks dialogs.
+const packDialog = document.querySelector('#pack-view');
+if (typeof packDialog?.showModal === 'function') {
+  const photo = packDialog.querySelector('img');
+  const title = packDialog.querySelector('#pack-view-title');
+  for (const link of document.querySelectorAll('[data-pack-image]')) {
+    link.addEventListener('click', (event) => {
+      if (event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      title.textContent = link.dataset.packImage;
+      photo.src = link.href;
+      packDialog.showModal();
+    });
+  }
+  packDialog.addEventListener('click', (event) => { if (event.target === packDialog) packDialog.close(); });
+}
