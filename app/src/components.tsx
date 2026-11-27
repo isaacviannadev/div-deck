@@ -211,7 +211,11 @@ export function Deck({ model = "mx", profile, profiles, selected, pressed, press
     const up = () => {
       const st = start.current; start.current = null;
       if (st?.moved) {
+        // the click that follows a drag must not select a key. When the drag ends over another key
+        // there is no click at all (press and release on different elements), so the flag must
+        // not outlive this release either, or it eats the next real click.
         suppressClick.current = true;
+        setTimeout(() => { suppressClick.current = false; }, 0);
         setDrag(null);
         if (st.over != null && st.over !== st.i) onMove?.(st.i, st.over);
       }
@@ -232,7 +236,7 @@ export function Deck({ model = "mx", profile, profiles, selected, pressed, press
             <button key={i} data-k={i}
               className={`key ${i === selected ? "sel" : ""} ${empty ? "empty" : ""} ${isPressed ? "down" : ""} ${dragging ? "dragging" : ""} ${drag && drag.over === i && !dragging ? "drop" : ""}`}
               style={{ ["--led" as string]: `#${isPressed ? pressColor : k.color}`, ...(dragging ? { transform: `translate(${drag.dx}px, ${drag.dy}px) scale(1.06)` } : {}) }}
-              onPointerDown={(e) => { if (e.button === 0) start.current = { i, x: e.clientX, y: e.clientY, moved: false }; }}
+              onPointerDown={(e) => { suppressClick.current = false; if (e.button === 0) start.current = { i, x: e.clientX, y: e.clientY, moved: false }; }}
               onClick={() => { if (suppressClick.current) { suppressClick.current = false; return; } onSelect(i); }}
               title={actionSummary(k.action, profiles)}>
               {model === "pro" ? <FaceTile k={k} profiles={profiles} /> : <>
