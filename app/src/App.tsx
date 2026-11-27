@@ -1,18 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, checkForUpdate, isTauri, isWindows, lockedApps, presetOwner, type UpdateInfo, type AppStateDto, type Config, type DeckInfo, type KeyConfig, type Profile, modelName } from "./api";
-import { AppPicker, Deck, KeyEditor, OledPreview } from "./components";
+import { api, checkForUpdate, isTauri, isWindows, lockedApps, presetOwner, type UpdateInfo, type AppStateDto, type Config, type DeckInfo, type KeyConfig, type Profile } from "./api";
+import { AppPicker, Deck, KeyEditor } from "./components";
+import { DeckCascader } from "./deckpicker";
 import { AppIcon, Icon, Toggle, appName, useApps } from "./ui";
 import { syncTileIcons } from "./tileIcons";
 import { ConfirmHost, Toaster, confirmDialog, dismiss, toast } from "./feedback";
 import "./App.css";
 import logoSvg from "./divdeck-logo.svg?raw";
-
-/** "1.1.0" < "1.2.0" */
-const fwOlder = (v: string, than: string) => {
-  const a = v.split(".").map(Number), b = than.split(".").map(Number);
-  for (let i = 0; i < 3; i++) if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) < (b[i] || 0);
-  return false;
-};
 
 const uid = () => Math.random().toString(36).slice(2, 9);
 
@@ -265,8 +259,6 @@ function Main({ initial }: { initial: AppStateDto }) {
     setDecks((ds) => ds.map((d) => (d.id === deck.id ? next : d)));
     api.updateDeck({ id: next.id, name: next.name, model: next.model, profile: next.profile, followApp: next.followApp, flipped: next.flipped, status: next.status });
   };
-  const [deckName, setDeckName] = useState(deck?.name ?? "");
-  useEffect(() => setDeckName(deck?.name ?? ""), [deck?.id, deck?.name]);
   const addProfile = () => {
     const p: Profile = { id: uid(), name: `Perfil ${config.profiles.length + 1}`, apps: [], keys: Array.from({ length: 15 }, () => ({ label: "", color: "1c1f26", action: { type: "none" } })) };
     edit((ps) => [...ps, p]);
@@ -324,65 +316,11 @@ function Main({ initial }: { initial: AppStateDto }) {
         <div className="brand" data-tauri-drag-region dangerouslySetInnerHTML={{ __html: logoSvg }} />
 
         <div className="side-section">{decks.length > 1 ? "Dispositivos" : "Dispositivo"}</div>
-        <div className="devices">
-          {decks.map((d) => (
-            <button key={d.id} className={`device ${d.connected ? "ok" : ""} ${d.id === deck?.id ? "on" : ""}`} onClick={() => selectDeck(d)}>
-              <span className="device-icon"><Icon name={d.model === "pro" ? "screen" : "keys"} size={15} /></span>
-              <span className="device-text">
-                <strong>{d.name}</strong>
-                <small>{d.connected
-                  ? `${d.model === "pro" ? "Pro" : "MX"} · ${config.profiles.find((p) => p.id === d.active)?.name ?? ""}`
-                  : "Desligado"}</small>
-              </span>
-              <span className="device-dot" />
-            </button>
-          ))}
-          {decks.length === 0 && (
-            <div className="device">
-              <span className="device-icon"><Icon name="usb" size={15} /></span>
-              <span className="device-text"><strong>DIV Deck</strong><small>Procurando… ligue o deck no USB</small></span>
-              <span className="device-dot" />
-            </div>
-          )}
-        </div>
-        {deck && (
-          <div className="deck-opts">
-            <input className="deck-name" value={deckName} maxLength={32} aria-label="Nome do deck"
-              onChange={(e) => setDeckName(e.target.value)}
-              onBlur={() => deckName.trim() !== deck.name && changeDeck({ name: deckName.trim() || modelName(deck.model) })}
-              onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />
-            <small className="deck-meta">{modelName(deck.model)}{deck.firmware ? ` · firmware ${deck.firmware}` : ""}</small>
-            <Toggle label="Segue o app em foco" checked={deck.followApp} onChange={(v) => changeDeck({ followApp: v })} />
-            {deck.model === "pro" && <Toggle label="Tela invertida (180°)" checked={deck.flipped} onChange={(v) => changeDeck({ flipped: v })} />}
-            {<Toggle label={deck.model === "pro" ? "Barra de estado" : "Tela OLED"} checked={deck.status?.show ?? true} onChange={(v) => changeDeck({ status: { ...(deck.status ?? { show: true, time: true, date: true, profile: true }), show: v } })} />}
-            {(deck.status?.show ?? true) && (
-              <div className="status-opts">
-                {([["time", "Hora"], ["date", "Data"], ["profile", "Perfil"]] as const).map(([k, l]) => (
-                  <label key={k} className="chk">
-                    <input type="checkbox" checked={deck.status?.[k] ?? true}
-                      onChange={(e) => changeDeck({ status: { ...(deck.status ?? { show: true, time: true, date: true, profile: true }), [k]: e.target.checked } })} />
-                    {l}
-                  </label>
-                ))}
-              </div>
-            )}
-            {deck.model === "mx" && (
-              <>
-                <OledPreview status={deck.status ?? { show: true, time: true, date: true, profile: true }}
-                  profile={config.profiles.find((p) => p.id === deck.active)?.name ?? ""} connected={deck.connected} />
-                {deck.connected && deck.firmware && fwOlder(deck.firmware, "1.2.0") && (
-                  <small className="deck-meta">A tela OLED precisa do firmware 1.2 ou mais recente.</small>
-                )}
-              </>
-            )}
-            {!deck.connected && decks.length > 1 && (
-              <button className="btn plain small danger" onClick={async () => {
-                const ok = await confirmDialog({ title: `Remover “${deck.name}” da lista?`, message: "Se voltar a ligá-lo, ele aparece outra vez como um deck novo.", confirm: "Remover", destructive: true });
-                if (ok) { api.forgetDeck(deck.id); setDeckId(null); toast.success(`${deck.name} removido`); }
-              }}>Remover da lista</button>
-            )}
-          </div>
-        )}
+        <DeckCascader decks={decks} deck={deck ?? null} profiles={config.profiles} onSelect={selectDeck} onChange={changeDeck}
+          onForget={async (d) => {
+            const ok = await confirmDialog({ title: `Remover “${d.name}” da lista?`, message: "Se voltar a ligá-lo, ele aparece outra vez como um deck novo.", confirm: "Remover", destructive: true });
+            if (ok) { api.forgetDeck(d.id); setDeckId(null); toast.success(`${d.name} removido`); }
+          }} />
 
         <div className="side-section">
           <span>Perfis</span>
