@@ -168,7 +168,7 @@ footer a { color: var(--text-2); }
 .models-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 .mcard { display: flex; flex-direction: column; }
 .mimg { aspect-ratio: 4 / 3; display: grid; place-items: center; background: radial-gradient(70% 70% at 50% 60%, #17181d, var(--card)); }
-.mimg img { width: 92%; height: auto; display: block; }
+.mimg img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .pro-sketch { width: 78%; color: var(--text-2); }
 .mbody { padding: 26px 28px 30px; }
 .mbody small { color: var(--cyan); font-weight: 600; font-size: 14px; }
@@ -178,17 +178,31 @@ footer a { color: var(--text-2); }
 .mlink { appearance: none; border: 0; background: none; padding: 0; font: inherit; font-size: 15px; color: var(--accent); cursor: pointer; }
 .soon small { color: #ffb020; }
 .soon { border-style: dashed; }
-.faces { margin-top: 56px; }
-.faces-h { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
-.faces-h b { font-size: 21px; letter-spacing: -.01em; }
-.faces-h span { color: var(--text-2); font-size: 15px; }
-.faces-row { display: grid; gap: 14px; }
-.faces-row.mx { grid-template-columns: repeat(5, 1fr); }
-.faces-row.touch { grid-template-columns: repeat(4, 1fr); }
-.faces-row figure { margin: 0; }
-.faces-row img { width: 100%; height: auto; display: block; border-radius: 10px; background: #e4e6ea; }
-.faces-row.touch img { background: #000; }
-.faces-row figcaption { color: var(--text-2); font-size: 14px; margin-top: 10px; }
+.face-options { margin-top: 22px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+.face-options details { border: 1px solid var(--line); border-radius: 14px; background: var(--card); padding: 0; }
+.face-options summary { align-items: center; padding: 13px 15px; min-height: 50px; font-size: 15px; }
+.face-options summary span { color: var(--text-2); font-size: 12px; font-weight: 500; margin-left: auto; }
+.face-options .faces-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 10px; padding: 2px 15px 15px; }
+.faces-row figure { margin: 0; min-width: 0; }
+.faces-row img { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; display: block; border-radius: 8px; background: #e4e6ea; }
+.faces-row.touch img { background: #08080a; }
+.faces-row figcaption { color: var(--text-2); font-size: 12px; margin-top: 6px; line-height: 1.35; }
+#embalagens { padding-top: 0; }
+.pack-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.pack-card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 18px; min-width: 0; }
+.pack-card h3 { margin: 0 0 5px; font-size: 21px; letter-spacing: -.02em; }
+.pack-card p { color: var(--text-2); margin: 0 0 16px; line-height: 1.5; font-size: 14px; }
+.pack-shots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.pack-shots a { min-width: 0; display: block; color: var(--text-2); font-size: 12px; line-height: 1.3; }
+.pack-shots a:hover { color: var(--text); }
+.pack-shots img { display: block; width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: cover; border-radius: 8px; background: #19191c; margin-bottom: 6px; }
+.pack-shots a:focus-visible, .face-options summary:focus-visible, .pack-view button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 8px; }
+.pack-view { width: min(940px, calc(100% - 24px)); max-height: calc(100% - 24px); border: 1px solid var(--line); border-radius: 16px; color: var(--text); background: var(--card); padding: 12px; }
+.pack-view::backdrop { background: rgba(0,0,0,.82); }
+.pack-view header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 2px 10px; }
+.pack-view button { color: var(--text); background: #22222a; border-radius: 8px; border: 1px solid #383840; min-height: 40px; padding: 0 12px; cursor: pointer; }
+.pack-view img { display: block; width: 100%; max-height: 76vh; object-fit: contain; border-radius: 10px; }
+.pack-note { margin: 13px 0 0; color: var(--text-2); font-size: 13px; line-height: 1.5; }
 .wait { display: flex; justify-content: space-between; align-items: center; gap: 28px; padding: 32px 34px; max-width: 780px; margin: 48px auto 0; text-align: left; }
 .wait small { color: var(--cyan); font-weight: 600; font-size: 14px; }
 .wait b { display: block; font-size: 24px; margin: 4px 0 6px; }
@@ -197,8 +211,7 @@ footer a { color: var(--text-2); }
 
 @media (max-width: 900px) {
   .models-grid { grid-template-columns: 1fr; }
-  .faces-row.mx { grid-template-columns: repeat(3, 1fr); }
-  .faces-row.touch { grid-template-columns: repeat(2, 1fr); }
+
   .wait { flex-direction: column; align-items: flex-start; }
   .wait-ctas { align-items: flex-start; }
   #story { height: 640vh; }
@@ -209,6 +222,7 @@ footer a { color: var(--text-2); }
   .side ul { display: none; }
   .hero { top: 10vh; }
 }
+@media (max-width: 680px) { .face-options, .pack-grid { grid-template-columns: 1fr; } }
 @media (max-width: 560px) { .features, .steps, .stats { grid-template-columns: 1fr; } section { padding: 88px 0; } }
 @media (prefers-reduced-motion: reduce) { #story { height: 100vh; } .cap:not(.hero) { display: none; } * { animation: none !important; } }
 </style>
@@ -222,6 +236,7 @@ footer a { color: var(--text-2); }
 </svg></a>
   <div class="links">
     <a href="#modelos">Modelos</a>
+    <a href="#embalagens">Embalagens</a>
     <a class="new" href="#em-breve">DIV Deck Pro <em>em breve</em></a>
     <a href="#comecar">Começar</a>
     <a href="#recursos">Recursos</a>
@@ -341,15 +356,15 @@ footer a { color: var(--text-2); }
   <p class="sub reveal">Os mesmos perfis e o mesmo app em todos. Muda o jeito de apertar.</p>
   <div class="models-grid stagger">
     <article class="mcard spot">
-      <div class="mimg"><img src="img/mx.webp" alt="DIV Deck MX com a cápsula OLED atrás das teclas e a face Código" loading="lazy" width="1100" height="820"></div>
+      <div class="mimg"><img src="img/mx.webp" alt="DIV Deck MX de frente, com face lisa, cápsula OLED e teclas iluminadas, entre o teclado e os monitores" loading="lazy" width="1280" height="960"></div>
       <div class="mbody"><small>Teclas mecânicas</small><h3>DIV Deck MX</h3>
       <ul><li>15 switches MX hot-swap</li><li>LED RGB por tecla</li><li>Face trocável, 5 desenhos</li><li>Cápsula OLED opcional</li></ul>
       <button class="mlink" data-set-model="mx" data-scroll-top>Ver em 3D ›</button></div>
     </article>
     <article class="mcard spot">
-      <div class="mimg"><img src="img/pro.webp" alt="DIV Deck Touch: tela de toque de 4 polegadas com 15 teclas desenhadas, de pé na mesa" loading="lazy" width="1100" height="820"></div>
+      <div class="mimg"><img src="img/touch.webp" alt="DIV Deck Touch no suporte de mesa, com a moldura lisa e o perfil Padrão na tela" loading="lazy" width="1280" height="960"></div>
       <div class="mbody"><small>Tela de toque</small><h3>DIV Deck Touch</h3>
-      <ul><li>Tela de 4", 480 × 320</li><li>Ícone, nome e cor por tecla</li><li>Capa trocável, 3 cores</li><li>Ímanes para o braço do monitor</li></ul>
+      <ul><li>Tela de 4", 480 × 320</li><li>Ícone, nome e cor por tecla</li><li>Capa trocável, 3 cores</li><li>Suportes de mesa e de tubo</li></ul>
       <button class="mlink" data-set-model="pro" data-scroll-top>Ver em 3D ›</button></div>
     </article>
     <article class="mcard spot soon" id="em-breve">
@@ -360,8 +375,9 @@ footer a { color: var(--text-2); }
     </article>
   </div>
 
-  <div class="faces reveal">
-    <div class="faces-h"><b>Faces do DIV Deck MX</b><span>Sai com a mão. Imprima em duas cores.</span></div>
+  <div class="face-options" aria-label="Personalizar o visual">
+    <details>
+      <summary>Faces do MX <span>5 opções</span></summary>
     <div class="faces-row mx">
       <figure><img src="assets/faces/mx-basica.png" alt="" loading="lazy"><figcaption>Básica</figcaption></figure>
       <figure><img src="assets/faces/mx-codigo.png" alt="" loading="lazy"><figcaption>Código</figcaption></figure>
@@ -369,17 +385,48 @@ footer a { color: var(--text-2); }
       <figure><img src="assets/faces/mx-futurista.png" alt="" loading="lazy"><figcaption>Futurista</figcaption></figure>
       <figure><img src="assets/faces/mx-gamer.png" alt="" loading="lazy"><figcaption>Gamer</figcaption></figure>
     </div>
-  </div>
-  <div class="faces reveal">
-    <div class="faces-h"><b>Capas do DIV Deck Touch</b><span>Prendem por clique. Três cores, face lisa.</span></div>
+    </details>
+    <details>
+      <summary>Capas do Touch <span>4 opções</span></summary>
     <div class="faces-row touch">
       <figure><img src="assets/faces/touch-code-grafite.png" alt="" loading="lazy"><figcaption>Code · grafite</figcaption></figure>
       <figure><img src="assets/faces/touch-code-creme.png" alt="" loading="lazy"><figcaption>Code · creme</figcaption></figure>
       <figure><img src="assets/faces/touch-sup-grafite.png" alt="" loading="lazy"><figcaption>Superfície · grafite</figcaption></figure>
       <figure><img src="assets/faces/touch-sup-creme.png" alt="" loading="lazy"><figcaption>Superfície · creme</figcaption></figure>
     </div>
+    </details>
   </div>
 </div></section>
+
+<section id="embalagens" aria-labelledby="titulo-embalagens"><div class="wrap">
+  <h2 class="big reveal" id="titulo-embalagens">Dentro da caixa.</h2>
+  <p class="sub reveal">Veja a embalagem e como as peças de cada deck vêm organizadas.</p>
+  <div class="pack-grid">
+    <article class="pack-card">
+      <h3>DIV Deck MX</h3>
+      <p>Deck no berço superior. Os acessórios ficam na bandeja de baixo.</p>
+      <div class="pack-shots">
+        <a href="img/embalagens/mx-lacrada.webp" data-pack-image="DIV Deck MX · Caixa lacrada"><img src="img/embalagens/mx-lacrada.webp" alt="" width="1080" height="720" loading="lazy" decoding="async">Caixa lacrada</a>
+        <a href="img/embalagens/mx-aberta.webp" data-pack-image="DIV Deck MX · Caixa aberta"><img src="img/embalagens/mx-aberta.webp" alt="" width="1080" height="720" loading="lazy" decoding="async">Caixa aberta</a>
+        <a href="img/embalagens/mx-acessorios.webp" data-pack-image="DIV Deck MX · Acessórios"><img src="img/embalagens/mx-acessorios.webp" alt="" width="1080" height="720" loading="lazy" decoding="async">Acessórios</a>
+      </div>
+    </article>
+    <article class="pack-card">
+      <h3>DIV Deck Touch</h3>
+      <p>Deck e caneta juntos no berço. Embaixo: face extra, suportes de mesa e de tubo e cabo USB-C.</p>
+      <div class="pack-shots">
+        <a href="img/embalagens/touch-lacrada.webp" data-pack-image="DIV Deck Touch · Caixa lacrada"><img src="img/embalagens/touch-lacrada.webp" alt="" width="1080" height="720" loading="lazy" decoding="async">Caixa lacrada</a>
+        <a href="img/embalagens/touch-aberta.webp" data-pack-image="DIV Deck Touch · Caixa aberta"><img src="img/embalagens/touch-aberta.webp" alt="" width="1080" height="720" loading="lazy" decoding="async">Caixa aberta</a>
+        <a href="img/embalagens/touch-acessorios.webp" data-pack-image="DIV Deck Touch · Acessórios"><img src="img/embalagens/touch-acessorios.webp" alt="" width="1080" height="720" loading="lazy" decoding="async">Acessórios</a>
+      </div>
+    </article>
+  </div>
+  <p class="pack-note">Imagens ilustrativas da embalagem.</p>
+</div></section>
+<dialog class="pack-view" id="pack-view" aria-labelledby="pack-view-title">
+  <header><strong id="pack-view-title">Embalagem</strong><form method="dialog"><button type="submit">Fechar</button></form></header>
+  <img alt="">
+</dialog>
 
 <section id="comecar"><div class="wrap">
   <h2 class="big reveal">Comece em 2 minutos.</h2>
