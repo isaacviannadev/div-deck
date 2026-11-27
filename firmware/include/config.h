@@ -32,7 +32,7 @@ constexpr uint8_t OLED_SCL = 22;
 
 constexpr uint32_t SERIAL_BAUD = 115200;
 constexpr uint8_t DEBOUNCE_MS = 5;
-constexpr uint32_t HOST_TIMEOUT_MS = 5000;   // no PING for this long -> standalone mode
+constexpr uint32_t HOST_TIMEOUT_MS = 15000;  // generous: macOS can delay a background app's PING by seconds   // no PING for this long -> standalone mode
 
 // Key index k = row * COLS + col, (0,0) = top-left seen from the front.
 // The LED data chain is a serpentine: row 0 left->right, row 1 right->left, row 2 left->right.

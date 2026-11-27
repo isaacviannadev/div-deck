@@ -24,7 +24,7 @@
 // Optional 0.96" SSD1306 OLED (I2C 0x3C/0x3D on OLED_SDA/OLED_SCL, v1.4 pod). It is mounted upside
 // down in the pod, so the image is rotated 180 deg. Without the OLED everything else works as before.
 //
-// Without a host (no PING for 5 s) the keys show a cyan "waiting" wave instead of the profile
+// Without a host (no line from it for 15 s) the keys show a cyan "waiting" wave instead of the profile
 // (and the OLED asks to open the app); presses still light up, so the hardware can be tested
 // with no app at all.
 
@@ -295,6 +295,7 @@ static void pollSerial() {
     if (ch == '\r') continue;
     if (ch == '\n') {
       rxBuf[rxLen] = '\0';
+      if (hostSeen) lastPing = millis();   // any line from the app proves it is there
       handleLine(rxBuf);
       rxLen = 0;
     } else if (rxLen < sizeof(rxBuf) - 1) {

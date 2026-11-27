@@ -13,7 +13,7 @@ export const fwOlder = (v: string, than: string) => {
 };
 
 const deckSub = (d: DeckInfo, profiles: Profile[]) =>
-  d.connected ? `${d.model === "pro" ? "Pro" : "MX"} · ${profiles.find((p) => p.id === d.active)?.name ?? ""}` : "Desligado";
+  d.connected ? `${d.model === "pro" ? "Touch" : "MX"} · ${profiles.find((p) => p.id === d.active)?.name ?? ""}` : "Desligado";
 
 /** Device picker as a cascader (Miller columns): decks → the deck's settings → its status bar / OLED.
  * The trigger shows the whole path, so with several decks it stays clear which one is being edited. */

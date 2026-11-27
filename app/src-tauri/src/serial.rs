@@ -258,7 +258,7 @@ fn session(app: &AppHandle, decks: &Decks, mut port: Box<dyn SerialPort>, info: 
         if wrote {
             let _ = port.flush();
         }
-        if last_ping.elapsed() >= Duration::from_secs(2) {
+        if last_ping.elapsed() >= Duration::from_secs(1) {
             if let Err(e) = port.write_all(b"PING\n") {
                 why = format!("write: {e}");
                 break;
@@ -267,8 +267,8 @@ fn session(app: &AppHandle, decks: &Decks, mut port: Box<dyn SerialPort>, info: 
         }
         // the deck answers every PING: a port that stays silent belongs to a deck that was reset
         // or unplugged without the OS telling us (then the scanner finds it again)
-        if last_rx.elapsed() > Duration::from_secs(7) {
-            why = "silent for 7 s".into();
+        if last_rx.elapsed() > Duration::from_secs(10) {
+            why = "silent for 10 s".into();
             break;
         }
         match reader.poll(port.as_mut()) {

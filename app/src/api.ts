@@ -100,7 +100,7 @@ export interface AppStateDto {
   accessibility: boolean;
 }
 
-export const modelName = (m: DeckModel) => (m === "pro" ? "DIV Deck Pro" : "DIV Deck MX");
+export const modelName = (m: DeckModel) => (m === "pro" ? "DIV Deck Touch" : "DIV Deck MX");
 
 export const KEYS = 15;
 export const COLS = 5;
@@ -207,7 +207,7 @@ const mock = (() => {
   let decks: DeckInfo[] = [
     { id: "port-cu-usbserial-0001", name: "DIV Deck MX", model: "mx", profile: config.baseProfile, followApp: true, flipped: false, status: { show: true, time: true, date: true, profile: true },
       connected: true, port: "/dev/cu.usbserial-0001", firmware: "1.0.0", active: config.baseProfile },
-    { id: "pro-30edab12cd34", name: "DIV Deck Pro", model: "pro", profile: config.baseProfile, followApp: false, flipped: false, status: { show: true, time: true, date: true, profile: true },
+    { id: "pro-30edab12cd34", name: "DIV Deck Touch", model: "pro", profile: config.baseProfile, followApp: false, flipped: false, status: { show: true, time: true, date: true, profile: true },
       connected: true, port: "/dev/cu.usbmodem101", firmware: "0.2.0", active: config.baseProfile },
   ];
   const pushDecks = () => emit("deck://decks", structuredClone(decks));

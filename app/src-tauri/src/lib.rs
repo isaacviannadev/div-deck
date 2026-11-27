@@ -117,7 +117,7 @@ pub(crate) fn on_deck_connected(app: &AppHandle, link: &LinkInfo) {
     {
         let mut cfg = st.config.lock().unwrap();
         if cfg.deck(&link.id).is_none() {
-            let base = if link.model == "pro" { "DIV Deck Pro" } else { "DIV Deck MX" };
+            let base = if link.model == "pro" { "DIV Deck Touch" } else { "DIV Deck MX" };
             let same = cfg.decks.iter().filter(|d| d.name.starts_with(base)).count();
             let name = if same == 0 { base.to_string() } else { format!("{base} {}", same + 1) };
             let profile = cfg.base_profile.clone();
@@ -517,7 +517,7 @@ fn update_deck(app: AppHandle, st: tauri::State<AppState>, deck: DeckConfig) -> 
         refollow = d.follow_app != deck.follow_app;
         d.name = deck.name.trim().chars().take(32).collect();
         if d.name.is_empty() {
-            d.name = if d.model == "pro" { "DIV Deck Pro".into() } else { "DIV Deck".into() };
+            d.name = if d.model == "pro" { "DIV Deck Touch".into() } else { "DIV Deck MX".into() };
         }
         d.follow_app = deck.follow_app;
         d.flipped = deck.flipped;
@@ -804,7 +804,7 @@ fn build_app_menu(app: &tauri::App) -> tauri::Result<Menu<tauri::Wry>> {
         &PredefinedMenuItem::maximize(h, Some("Zoom"))?,
     ])?;
     let help = Submenu::with_items(h, "Ajuda", true, &[
-        &item("help_manual", "Manual do DIV Deck Pro", None)?,
+        &item("help_manual", "Manual do DIV Deck Touch", None)?,
         &item("help_site", "Site do DIV Deck", None)?,
         &sep()?,
         &item("help_issue", "Reportar um problema…", None)?,

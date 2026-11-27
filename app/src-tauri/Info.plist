@@ -6,5 +6,9 @@
   <string>O DIV Deck controla o Spotify (play, pausa, faixa seguinte) quando carrega nas teclas de mídia.</string>
   <key>NSInputMonitoringUsageDescription</key>
   <string>O DIV Deck grava macros e fala com teclados Logitech (Easy-Switch).</string>
+  <key>NSAppSleepDisabled</key>
+  <true/>
+  <key>LSAppNapIsDisabled</key>
+  <true/>
 </dict>
 </plist>

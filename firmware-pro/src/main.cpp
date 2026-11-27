@@ -58,7 +58,7 @@
 #define SWAP_RGB       false
 
 static const uint8_t KEYS = 15, COLS = 5, ROWS = 3;
-static const uint32_t HOST_TIMEOUT_MS = 5000;
+static const uint32_t HOST_TIMEOUT_MS = 15000;   // generous: macOS can delay a background app's PING by seconds
 
 class LGFX : public lgfx::LGFX_Device {
   lgfx::Panel_ST7796 _panel; lgfx::Bus_SPI _bus; lgfx::Touch_XPT2046 _touch; lgfx::Light_PWM _light;
@@ -611,7 +611,7 @@ static void pollSerial() {
   while (Serial.available()) {
     char ch = Serial.read();
     if (ch == '\r') continue;
-    if (ch == '\n') { buf[len] = '\0'; handleLine(buf); len = 0; }
+    if (ch == '\n') { buf[len] = '\0'; if (hostSeen) lastPing = millis(); handleLine(buf); len = 0; }   // any line from the app proves it is there
     else if (len < sizeof(buf) - 1) buf[len++] = ch;
   }
 }

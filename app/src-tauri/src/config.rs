@@ -237,6 +237,12 @@ impl Config {
             *self = Config::default();
         }
         // the standard deck is now called "DIV Deck MX": rename decks still on the old default name
+        // and the touch-screen deck is "DIV Deck Touch" (the model id stays "pro" in the config and firmware)
+        for d in self.decks.iter_mut().filter(|d| d.model == "pro") {
+            if let Some(rest) = d.name.strip_prefix("DIV Deck Pro") {
+                d.name = format!("DIV Deck Touch{rest}");
+            }
+        }
         for d in self.decks.iter_mut().filter(|d| d.model != "pro") {
             if d.name == "DIV Deck" {
                 d.name = "DIV Deck MX".into();

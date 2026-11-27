@@ -374,7 +374,7 @@ export function KeyEditor({ model = "mx", index, value, profiles, pressColor, on
                   onChange={(e) => onChange({ ...value, label: e.target.value })} />
               </label>
             </div>
-            <div className="group-title">Ícone <small>· aparece na tela do DIV Deck Pro</small></div>
+            <div className="group-title">Ícone <small>· aparece na tela do DIV Deck Touch</small></div>
             <div className="group pad">
               <IconPicker value={value} onChange={(icon) => onChange({ ...value, icon })} />
             </div>
