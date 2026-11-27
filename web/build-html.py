@@ -3,8 +3,8 @@ import pathlib
 root = pathlib.Path(__file__).parent
 s = (root / 'index.template.html').read_text()
 parts = {}
-parts['WAITLIST'] = 'mailto:contato@divtecnologia.com.br?subject=Lista%20de%20espera%20DIV%20Deck&amp;body=Ol%C3%A1!%20Quero%20entrar%20na%20lista%20de%20espera%20do%20(MX%20%2F%20Touch%20%2F%20Pro)%3A%20'
-parts['WAITLIST_PRO'] = 'mailto:contato@divtecnologia.com.br?subject=Lista%20de%20espera%20DIV%20Deck%20Pro&amp;body=Ol%C3%A1!%20Quero%20saber%20quando%20o%20DIV%20Deck%20Pro%20sair.'
+# Public responder URL only. The editor and submitted addresses stay private.
+parts['WAITLIST_FORM'] = 'https://docs.google.com/forms/d/e/1FAIpQLSeMSh8MGX-CJnvzyn-OkUhcU3wT5t1bfN-MekAMQI5BoYz0hg/viewform'
 for k, v in parts.items():
     s = s.replace('{{' + k + '}}', v)
 (root.parent / 'docs' / 'index.html').write_text(s)
