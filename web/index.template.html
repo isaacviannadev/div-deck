@@ -204,16 +204,16 @@ footer a { color: var(--text-2); }
 .pack-view img { display: block; width: 100%; max-height: 76vh; object-fit: contain; border-radius: 10px; }
 .pack-note { margin: 13px 0 0; color: var(--text-2); font-size: 13px; line-height: 1.5; }
 #lista-de-espera { scroll-margin-top: 96px; }
-.wait { max-width: 780px; margin: 48px auto 0; padding: clamp(16px, 4vw, 32px); text-align: left; }
+.wait { max-width: 780px; margin: 48px auto 0; padding: clamp(16px, 4vw, 32px); text-align: left; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 18px 26px; }
 .wait small { color: var(--cyan); font-weight: 600; font-size: 14px; }
 .wait h3 { margin: 4px 0 6px; font-size: clamp(24px, 4vw, 34px); line-height: 1.15; letter-spacing: -.025em; }
 .wait p { margin: 0; color: var(--text-2); font-size: 15px; line-height: 1.5; }
-.wait iframe { display: block; width: 100%; height: 465px; margin: 18px 0 14px; border: 0; border-radius: 12px; background: #f5f5f5; color-scheme: light; }
-.wait-ctas { display: flex; align-items: center; gap: 8px 18px; flex-wrap: wrap; }
-.wait-ctas a { display: inline-flex; align-items: center; min-height: 44px; color: var(--text-2); font-size: 14px; text-decoration: underline; text-underline-offset: 3px; }
-.wait-ctas a:hover { color: var(--text); }
-.wait-ctas a:focus-visible, .wait iframe:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-@media (max-width: 480px) { .wait iframe { height: 515px; } }
+.wait-copy { flex: 1 1 330px; }
+.wait-ctas { display: flex; flex: 0 1 auto; align-items: flex-start; gap: 4px; flex-direction: column; }
+.wait-ctas .btn { font-size: 15px; }
+.wait-ctas .wait-build { display: inline-flex; align-items: center; min-height: 36px; padding: 0 6px; color: var(--text-2); font-size: 14px; }
+.wait-ctas .wait-build:hover { color: var(--text); }
+.wait-ctas a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
 
 @media (max-width: 900px) {
   .models-grid { grid-template-columns: 1fr; }
@@ -272,7 +272,7 @@ footer a { color: var(--text-2); }
       </div>
       <div class="ctas">
         <a class="btn hero-dl magnetic" href="#baixar"><span>Baixar o app</span></a>
-        <a class="btn ghost" href="#lista-de-espera">Entrar na lista de espera ›</a>
+        <a class="btn ghost" href="{{WAITLIST_FORM}}?hl=pt-BR" target="_blank" rel="noopener noreferrer" aria-label="Entrar na lista de espera (abre em nova aba)">Entrar na lista de espera ›</a>
       </div>
       <div class="meta" id="hero-meta">macOS 12+ · Windows 10/11 · grátis</div>
     </header>
@@ -375,7 +375,7 @@ footer a { color: var(--text-2); }
       <div class="mimg"><svg class="pro-sketch" viewBox="0 0 260 170" aria-hidden="true"><rect x="10" y="12" width="240" height="146" rx="10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 5"/><rect x="26" y="26" width="208" height="118" rx="4" fill="currentColor" opacity=".06"/><g fill="currentColor" opacity=".18"></g><text x="130" y="90" text-anchor="middle" font-size="15" fill="currentColor" opacity=".7">4,3" · 800 × 480</text></svg></div>
       <div class="mbody"><small>Em breve</small><h3>DIV Deck Pro</h3>
       <ul><li>Tela de toque de 4,3", 800 × 480</li><li>Placa Waveshare ESP32-S3</li><li>Bateria e Bluetooth: funciona sem fio</li><li>Mesmo app e mesmos perfis</li></ul>
-      <a class="mlink" href="#lista-de-espera">Avise-me quando sair ›</a></div>
+      <a class="mlink" href="{{WAITLIST_FORM}}?hl=pt-BR" target="_blank" rel="noopener noreferrer" aria-label="Avise-me quando sair (abre em nova aba)">Avise-me quando sair ›</a></div>
     </article>
   </div>
 
@@ -503,13 +503,14 @@ footer a { color: var(--text-2); }
   </div>
   <p class="meta" id="version">Versão mais recente no GitHub</p>
   <div class="wait spot" id="lista-de-espera" role="region" aria-labelledby="titulo-lista-de-espera">
-    <small>Hardware</small>
-    <h3 id="titulo-lista-de-espera">Lista de espera do DIV Deck</h3>
-    <p>Deixe seu e-mail para receber o aviso de disponibilidade. Só isso, sem precisar criar conta.</p>
-    <iframe title="Inscrever e-mail na lista de espera do DIV Deck" src="{{WAITLIST_FORM}}?embedded=true&amp;hl=pt-BR" width="680" height="465" loading="lazy" referrerpolicy="no-referrer"></iframe>
+    <div class="wait-copy">
+      <small>Hardware</small>
+      <h3 id="titulo-lista-de-espera">Lista de espera do DIV Deck</h3>
+      <p>Deixe seu e-mail para receber o aviso de disponibilidade. O formulário abre em uma nova aba, sem precisar criar conta.</p>
+    </div>
     <div class="wait-ctas">
-      <a href="{{WAITLIST_FORM}}?hl=pt-BR">Abrir o formulário diretamente no Google</a>
-      <a href="https://github.com/isaacviannadev/div-deck">Montar o seu ›</a>
+      <a class="btn" href="{{WAITLIST_FORM}}?hl=pt-BR" target="_blank" rel="noopener noreferrer" aria-label="Entrar na lista de espera (abre em nova aba)">Entrar na lista de espera <span aria-hidden="true">↗</span></a>
+      <a class="wait-build" href="https://github.com/isaacviannadev/div-deck">Montar o seu ›</a>
     </div>
   </div>
 </div></section>
@@ -525,7 +526,7 @@ footer a { color: var(--text-2); }
     <details><summary>Como troco o teclado e o rato Logitech de computador?</summary><p>Crie uma tecla <strong>Trocar PC</strong> e escolha o canal (1, 2 ou 3) de cada aparelho, porque cada um guarda os seus computadores. Funciona com teclados e ratos Logitech com Easy-Switch, por Bluetooth ou receptor, sem o Logi Options+. Ponha também uma tecla para voltar no deck do outro computador.</p></details>
     <details><summary>Posso usar macros em jogos?</summary><p>Pode: a ação “Tecla (jogos)” carrega e solta como uma pessoa e a opção “Ritmo exato” mantém o tempo de cada passo. Confira as regras de cada jogo: alguns proíbem macros em partidas competitivas.</p></details>
     <details><summary>Qual é a diferença entre o MX, o Touch e o Pro?</summary><p>O DIV Deck MX tem 15 teclas mecânicas com luz RGB: clique de verdade. O DIV Deck Touch troca as teclas por uma tela de toque de 4", onde cada tecla mostra o ícone, o nome e a cor do que faz. O DIV Deck Pro, que vem aí, usa uma tela maior de 4,3". Todos usam o mesmo app e os mesmos perfis.</p></details>
-    <details><summary>Quando posso comprar um deck?</summary><p>Ainda não estão à venda. <a href="#lista-de-espera">Entre na lista de espera</a> para receber o aviso de disponibilidade. Quer montar o seu? O código, o firmware e as peças estão no GitHub.</p></details>
+    <details><summary>Quando posso comprar um deck?</summary><p>Ainda não estão à venda. <a href="{{WAITLIST_FORM}}?hl=pt-BR" target="_blank" rel="noopener noreferrer" aria-label="Entre na lista de espera (abre em nova aba)">Entre na lista de espera</a> para receber o aviso de disponibilidade. Quer montar o seu? O código, o firmware e as peças estão no GitHub.</p></details>
     <details><summary>Posso usar os dois ao mesmo tempo?</summary><p>Sim. O app reconhece vários decks ligados juntos. Cada um tem nome e perfil próprios e pode seguir ou não o app em foco; escolha qual editar no topo da barra lateral.</p></details>
     <details><summary>Como prendo o Touch no braço do monitor?</summary><p>A braçadeira aperta no tubo de 35 mm e leva uma placa com ímanes. O painel encaixa e sai com a mão; os ímanes ficam fechados dentro das peças. Na mesa, ele fica de pé num pé simples.</p></details>
     <details><summary>Posso trocar os switches e as keycaps?</summary><p>Sim. As teclas usam sockets hot-swap para switches MX de 3 e 5 pinos: puxe com um extrator e encaixe o novo. Keycaps MX padrão servem. A face do MX e a capa do Touch também trocam, sem ferramentas.</p></details>
