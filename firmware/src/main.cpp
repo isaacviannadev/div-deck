@@ -54,7 +54,7 @@ static uint32_t keyChangedAt[KEYS];  // when the raw reading last changed
 static uint32_t lastPing = 0;
 static bool hostSeen = false;        // got a HELLO/PING since boot
 // No app: the keys show a "waiting" wave instead of the profile, the OLED asks to open the app.
-static bool noHost() { return !hostSeen || millis() - lastPing > HOST_TIMEOUT_MS; }
+static bool noHost() { return !hostSeen || (int32_t)(millis() - lastPing) > (int32_t)HOST_TIMEOUT_MS; }
 static bool ledsDirty = true;
 static char rxBuf[96];
 

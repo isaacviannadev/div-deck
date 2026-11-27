@@ -652,7 +652,9 @@ void loop() {
   static uint32_t lastAnim = 0;
   if (covered() && now - lastAnim >= 33) { lastAnim = now; lockFrame++; drawLockFrame(false); }
   // app connected or not: the keys only show (and work) while the app answers
-  bool standalone = !hostSeen || now - lastPing > HOST_TIMEOUT_MS;
+  // read the clock again: pollSerial() above may have stamped lastPing after `now` was taken, and
+  // `now - lastPing` would then wrap around to ~49 days and flash the "open the app" screen
+  bool standalone = !hostSeen || (int32_t)(millis() - lastPing) > (int32_t)HOST_TIMEOUT_MS;
   if (standalone != wasStandalone) {
     wasStandalone = standalone;
     neopixelWrite(PIN_RGB, 0, standalone ? 0 : 6, 0);   // small status LED: green while connected
