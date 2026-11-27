@@ -23,6 +23,8 @@ jobs:
             args: ""
             rust_targets: ""
     runs-on: ${{ matrix.platform }}
+    env:
+      HAS_CERT: ${{ secrets.APPLE_CERTIFICATE != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -44,20 +46,36 @@ jobs:
         working-directory: app
         run: npm ci
 
+      # Our own self-signed "DIV Deck" certificate (the same the local builds use): imported into a
+      # keychain and trusted for code signing, so codesign accepts it. A stable signature means macOS
+      # keeps the Accessibility / Input Monitoring permissions across updates. No secret: ad-hoc build.
+      - name: Import signing certificate
+        if: matrix.platform == 'macos-latest' && env.HAS_CERT == 'true'
+        env:
+          CERT_B64: ${{ secrets.APPLE_CERTIFICATE }}
+          CERT_PASS: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          echo "$CERT_B64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          KC="$RUNNER_TEMP/build.keychain-db"
+          security create-keychain -p ci "$KC"
+          security set-keychain-settings -lut 21600 "$KC"
+          security unlock-keychain -p ci "$KC"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KC" -P "$CERT_PASS" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k ci "$KC" > /dev/null
+          security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
+          security find-certificate -c "DIV Deck" -p "$KC" > "$RUNNER_TEMP/cert.pem"
+          sudo security add-trusted-cert -d -r trustRoot -p codeSign -k /Library/Keychains/System.keychain "$RUNNER_TEMP/cert.pem"
+          security find-identity -v -p codesigning
+          echo "APPLE_SIGNING_IDENTITY=DIV Deck" >> "$GITHUB_ENV"
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # signs the update bundles + latest.json that the in-app updater checks
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
-          # macOS code signing with our own (self-signed) "DIV Deck" certificate, the same one the local
-          # builds use: the signature stays the same from one version to the next, so macOS keeps the
-          # Accessibility / Input Monitoring permissions across updates. Without the secrets the build
-          # is still made (ad-hoc signed) instead of failing.
+          # APPLE_SIGNING_IDENTITY comes from the import step above (macOS, when the certificate exists).
           # (A paid Apple Developer ID would also remove the "unidentified developer" warning.)
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_CERTIFICATE != '' && 'DIV Deck' || '' }}
         with:
           projectPath: app
           tagName: ${{ github.ref_name }}
