@@ -50,12 +50,14 @@ jobs:
           # signs the update bundles + latest.json that the in-app updater checks
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
-          # macOS code signing with our own (self-signed) certificate: the signature stays the same from
-          # one version to the next, so macOS keeps the Accessibility permission across updates.
+          # macOS code signing with our own (self-signed) "DIV Deck" certificate, the same one the local
+          # builds use: the signature stays the same from one version to the next, so macOS keeps the
+          # Accessibility / Input Monitoring permissions across updates. Without the secrets the build
+          # is still made (ad-hoc signed) instead of failing.
           # (A paid Apple Developer ID would also remove the "unidentified developer" warning.)
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: DIV Tecnologia Code Signing
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_CERTIFICATE != '' && 'DIV Deck' || '' }}
         with:
           projectPath: app
           tagName: ${{ github.ref_name }}
