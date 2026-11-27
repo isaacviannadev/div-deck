@@ -5,6 +5,9 @@ use crate::config::{Action, MediaKey};
 use enigo::{Button, Direction, Enigo, Key, Keyboard, Mouse, Settings};
 use std::{cell::RefCell, process::Command, sync::{mpsc, OnceLock}, thread, time::Duration};
 
+/// Bundle id of the app in front (kept by lib's watcher), for media routing.
+pub static FRONT_APP: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
 pub enum Job {
     Run(Action),
 }
@@ -140,6 +143,10 @@ fn run_at(action: &Action, depth: u8) -> Result<(), String> {
             Ok(())
         }
         Action::Media { key } => {
+            #[cfg(target_os = "macos")]
+            if let Some(player) = media_player(*key) {
+                return player_command(player, *key);
+            }
             let k = match key {
                 MediaKey::PlayPause => Key::MediaPlayPause,
                 MediaKey::Next => Key::MediaNextTrack,
@@ -165,6 +172,43 @@ fn run_at(action: &Action, depth: u8) -> Result<(), String> {
             })
         }
     }
+}
+
+/// macOS sends play/pause/next to the last "Now Playing" app and, with none, opens Music. When
+/// Spotify is the one in use (in front, or running while Music isn't), talk to it directly.
+#[cfg(target_os = "macos")]
+fn media_player(key: MediaKey) -> Option<&'static str> {
+    if !matches!(key, MediaKey::PlayPause | MediaKey::Next | MediaKey::Previous) {
+        return None; // volume stays system-wide
+    }
+    let running = |name: &str| Command::new("/usr/bin/pgrep").args(["-xq", name]).status().is_ok_and(|s| s.success());
+    let front = FRONT_APP.lock().unwrap().clone().unwrap_or_default();
+    if front == "com.spotify.client" {
+        return Some("Spotify");
+    }
+    if front == "com.apple.Music" {
+        return None;
+    }
+    if running("Spotify") && !running("Music") {
+        return Some("Spotify");
+    }
+    None
+}
+
+#[cfg(target_os = "macos")]
+fn player_command(app: &str, key: MediaKey) -> Result<(), String> {
+    let verb = match key {
+        MediaKey::PlayPause => "playpause",
+        MediaKey::Next => "next track",
+        MediaKey::Previous => "previous track",
+        _ => return Ok(()),
+    };
+    let ok = Command::new("/usr/bin/osascript")
+        .args(["-e", &format!("tell application \"{app}\" to {verb}")])
+        .status()
+        .map_err(|e| e.to_string())?
+        .success();
+    if ok { Ok(()) } else { Err(format!("{app} did not accept '{verb}' (Automation permission?)")) }
 }
 
 fn spawn(cmd: &str, args: &[&str]) -> Result<(), String> {

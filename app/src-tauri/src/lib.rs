@@ -452,6 +452,7 @@ fn spawn_front_app_watcher(app: AppHandle) {
             last = front.clone();
             let st = app.state::<AppState>();
             *st.front_app.lock().unwrap() = front_full.clone();
+            *actions::FRONT_APP.lock().unwrap() = front.clone();
             let _ = app.emit("deck://front-app", front.clone());
             let changes: Vec<(String, String)> = {
                 let cfg = st.config.lock().unwrap();
