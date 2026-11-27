@@ -18,7 +18,7 @@
 //     T <k> <text>                        tile label (ASCII, may be empty)
 //     G <k> <kind> [text]                 big glyph: txt <text> | play | next | prev | volup | voldown | mute | none
 //     N <text>                            profile name (shown when the app is gone)
-//     O <1|3>                             rotation: 1 = normal, 3 = upside down
+//     O <1|3>                             1 = upright in the Pro case (default), 3 = turned 180 deg
 //     IH <k> <hash|->                     tile icon (56x56 BGRA, stored in flash by hash). Unknown hash -> device answers "NEED <hash>"
 //     IB <hash> <base64>                  a chunk of that icon (appended)
 //     IE <hash>                           icon complete: stored and drawn on every tile waiting for it
@@ -112,7 +112,7 @@ static Tile tiles[KEYS];
 static bool tileDirty[KEYS];
 static char profileName[32] = "";
 static uint32_t pressColor = 0xFFFFFF;
-static uint8_t brightness = 48, rotation = 1;
+static uint8_t brightness = 48, rotation = 3;   // 3: the Pro case holds the panel upside down
 static uint32_t lastPing = 0;
 static bool wasStandalone = true;
 static int8_t touched = -1;
@@ -131,7 +131,7 @@ static int lastMinute = -1;
 static void loadSettings() {
   prefs.begin("divpro", true);
   brightness = prefs.getUChar("bri", 48);
-  rotation = prefs.getUChar("rot", 1);
+  rotation = prefs.getUChar("rot", 3);
   hdrMask = prefs.getUChar("hdr", 0x0F);
   pressColor = prefs.getUInt("press", 0xFFFFFF);
   prefs.getString("name", profileName, sizeof profileName);
@@ -589,8 +589,12 @@ static void handleLine(char *line) {
     if (m != hdrMask) { hdrMask = m; saveSettings(); tft.fillScreen(TFT_BLACK); drawAll(); }
     Serial.println("OK");
   } else if (!strcmp(cmd, "O") && rest) {
-    uint8_t r = atoi(rest) == 3 ? 3 : 1;
-    if (r != rotation) { rotation = r; tft.setRotation(rotation); drawAll(); }
+    // the app's "O 1" means upright as seen in the case, where the panel sits upside down
+    uint8_t r = atoi(rest) == 3 ? 1 : 3;
+    if (r != rotation) {
+      rotation = r; tft.setRotation(rotation); saveSettings();   // kept, so boot/waiting screens match
+      if (covered()) drawLockFrame(true); else drawAll();
+    }
     Serial.println("OK");
   } else if (!strcmp(cmd, "R")) {
     drawDirty(); Serial.println("OK");

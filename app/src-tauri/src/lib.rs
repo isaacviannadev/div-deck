@@ -613,8 +613,18 @@ fn macro_cancel(app: AppHandle) {
 
 /// "Input Monitoring" (macOS): needed to record macros and to reach Logitech keyboards.
 #[tauri::command]
-fn input_access(request: bool) -> bool {
-    recorder::has_access(request)
+fn input_access(app: AppHandle, request: bool) -> bool {
+    if recorder::has_access(false) || !request {
+        return recorder::has_access(false);
+    }
+    // the system prompt (and the entry in Settings) only appears when asked from the main thread
+    let (tx, rx) = std::sync::mpsc::channel();
+    let _ = app.run_on_main_thread(move || {
+        let _ = tx.send(recorder::has_access(true));
+    });
+    let ok = rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap_or(false);
+    log(format!("input monitoring requested: {ok}"));
+    ok
 }
 
 #[tauri::command]
