@@ -495,10 +495,18 @@ function Main({ initial }: { initial: AppStateDto }) {
         )}
 
         <div className="stage" data-tauri-drag-region>
-          <Deck model={deck?.model ?? "mx"} profile={profile} profiles={config.profiles} selected={selected} pressed={pressed} pressColor={config.pressColor} onSelect={setSelected} />
+          <Deck model={deck?.model ?? "mx"} profile={profile} profiles={config.profiles} selected={selected} pressed={pressed} pressColor={config.pressColor} onSelect={setSelected}
+            onMove={(from, to) => {
+              updateProfile((p) => {
+                const keys = [...p.keys];
+                [keys[from], keys[to]] = [keys[to], keys[from]];
+                return { ...p, keys };
+              }, `move-${profile.id}-${from}-${to}`);
+              setSelected(to);
+            }} />
           <p className="deck-hint">
             {deck && decks.length > 1 ? `${deck.name} · ` : ""}
-            Clique numa tecla para editar — ou {deck?.model === "pro" ? "toque-a na tela" : "aperte-a no deck"}
+            Clique numa tecla para editar, ou {deck?.model === "pro" ? "toque-a na tela" : "aperte-a no deck"}. Arraste para trocar de lugar.
           </p>
         </div>
         <Toaster />

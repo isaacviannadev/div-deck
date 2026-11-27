@@ -189,20 +189,52 @@ function FaceTile({ k, profiles }: { k: KeyConfig; profiles: Profile[] }) {
   return <canvas ref={ref} className="face" width={FACE_W * 3} height={FACE_H * 3} />;
 }
 
-export function Deck({ model = "mx", profile, profiles, selected, pressed, pressColor, onSelect }: {
-  model?: DeckModel; profile: Profile; profiles: Profile[]; selected: number; pressed: Set<number>; pressColor: string; onSelect: (k: number) => void;
+export function Deck({ model = "mx", profile, profiles, selected, pressed, pressColor, onSelect, onMove }: {
+  model?: DeckModel; profile: Profile; profiles: Profile[]; selected: number; pressed: Set<number>; pressColor: string;
+  onSelect: (k: number) => void; onMove?: (from: number, to: number) => void;
 }) {
+  // drag to reorder (pointer events: HTML5 drag-and-drop is unreliable inside the Tauri webview)
+  const [drag, setDrag] = useState<{ from: number; dx: number; dy: number; over: number | null } | null>(null);
+  const start = useRef<{ i: number; x: number; y: number; moved: boolean; over?: number | null } | null>(null);
+  const suppressClick = useRef(false);
+  useEffect(() => {
+    const move = (e: PointerEvent) => {
+      const st = start.current; if (!st || !onMove) return;
+      const dx = e.clientX - st.x, dy = e.clientY - st.y;
+      if (!st.moved && Math.hypot(dx, dy) < 6) return;
+      st.moved = true;
+      const el = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>("[data-k]");
+      const over = el ? Number(el.dataset.k) : null;
+      st.over = over;
+      setDrag({ from: st.i, dx, dy, over });
+    };
+    const up = () => {
+      const st = start.current; start.current = null;
+      if (st?.moved) {
+        suppressClick.current = true;
+        setDrag(null);
+        if (st.over != null && st.over !== st.i) onMove?.(st.i, st.over);
+      }
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+    return () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", up); };
+  }, [onMove]);
   return (
-    <div className={`deck ${model}`}>
+    <div className={`deck ${model} ${drag ? "reordering" : ""}`}>
       <div className="deck-face" style={{ gridTemplateColumns: `repeat(${COLS}, 1fr)` }}>
         {profile.keys.map((k, i) => {
           const empty = k.action.type === "none";
           const isPressed = pressed.has(i);
+          const dragging = drag?.from === i;
           return (
-            <button key={i}
-              className={`key ${i === selected ? "sel" : ""} ${empty ? "empty" : ""} ${isPressed ? "down" : ""}`}
-              style={{ ["--led" as string]: `#${isPressed ? pressColor : k.color}` }}
-              onClick={() => onSelect(i)} title={actionSummary(k.action, profiles)}>
+            <button key={i} data-k={i}
+              className={`key ${i === selected ? "sel" : ""} ${empty ? "empty" : ""} ${isPressed ? "down" : ""} ${dragging ? "dragging" : ""} ${drag && drag.over === i && !dragging ? "drop" : ""}`}
+              style={{ ["--led" as string]: `#${isPressed ? pressColor : k.color}`, ...(dragging ? { transform: `translate(${drag.dx}px, ${drag.dy}px) scale(1.06)` } : {}) }}
+              onPointerDown={(e) => { if (e.button === 0) start.current = { i, x: e.clientX, y: e.clientY, moved: false }; }}
+              onClick={() => { if (suppressClick.current) { suppressClick.current = false; return; } onSelect(i); }}
+              title={actionSummary(k.action, profiles)}>
               {model === "pro" ? <FaceTile k={k} profiles={profiles} /> : <>
                 <span className="led" />
                 <span className="key-glyph">

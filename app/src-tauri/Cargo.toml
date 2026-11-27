@@ -1,6 +1,6 @@
 [package]
 name = "divdeck"
-version = "0.6.1"
+version = "0.6.2"
 description = "DIV Deck companion app"
 authors = ["Isaac Vianna"]
 edition = "2024"
