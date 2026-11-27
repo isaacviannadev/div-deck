@@ -51,4 +51,4 @@ Content readable without the 3D/WebGL layer; respect reduced motion; keyboard re
 ## Lineup (Nov 2026)
 - DIV Deck MX: 15 mechanical keys, RGB per key, removable face (5 designs), optional OLED pod.
 - DIV Deck Touch: 4" 480×320 touchscreen (was "DIV Deck Pro"), clip-on covers (Code, Superfície; 3 colours each). Model id stays "pro" in config and firmware.
-- DIV Deck Pro (coming soon): Waveshare ESP32-S3-Touch-LCD-4.3B, 4.3" 800×480, sold without a case.
+- DIV Deck Pro (coming soon): Waveshare ESP32-S3-Touch-LCD-4.3B, 4.3" 800×480, with a battery for Bluetooth (wireless) use.
