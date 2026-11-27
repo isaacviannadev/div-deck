@@ -11,6 +11,17 @@ permissions:
   contents: write
 
 jobs:
+  # the deck firmwares (full images, flash at 0x0) built from firmware/ and firmware-pro/ live in
+  # docs/firmware: attach them to every release
+  firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Attach firmware images
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" docs/firmware/*.bin --clobber --repo "${{ github.repository }}"
+
   build:
     strategy:
       fail-fast: false
