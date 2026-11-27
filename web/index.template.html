@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<!--
+THESIS: the DIV Deck page is a print job in a slicer, not a dark product page. The deck is
+printed layer by layer on a build plate in front of you, then its keys light up and change
+with the app, the way a filament swap changes the colour.
+OWN-WORLD: light viewport grey, bronze textured PEI plate, white slicer panels with 1px hairlines,
+filament swatches as the only colours, one green "print" action. Archivo wide for titles,
+Archivo narrow tabular for readouts, system UI for prose.
+STORY: what it is (keys that follow the app) → start in four steps → preview every profile →
+the objects (MX, Pro, OLED pod, faces) → what the app can do → download / waitlist → warnings.
+FIRST VIEWPORT: full-bleed viewport with the plate and the MX at 3/4 view; title and the two
+actions in a floating panel top-left; the layer slider on the right edge with its readout;
+filament chips for profiles along the bottom.
+FORM: slicer workspace (grounded list #6), seed dd1fc774.
+-->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DIV Deck — as teclas mudam com o app</title>
+<meta name="description" content="DIV Deck MX e DIV Deck Pro: um macro pad que troca as teclas sozinho conforme o app em foco. App grátis para macOS e Windows. Hardware em lista de espera.">
+<meta property="og:title" content="DIV Deck">
+<meta property="og:description" content="As teclas mudam com o app. Baixe o app grátis e entre na lista de espera do DIV Deck MX e do Pro.">
+<meta property="og:image" content="img/mx.webp">
+<meta name="theme-color" content="#e8ebee">
+{{FAVICON}}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap" rel="stylesheet">
+<link rel="modulepreload" href="assets/app.js">
+<link rel="preload" href="assets/divdeck.glb" as="fetch" crossorigin>
+<style>
+:root {
+  --vp: #e8ebee; --vp-2: #d2d7dc; --panel: #fff; --panel-2: #f3f5f6; --line: #d3d8dd; --line-2: #e3e6e9;
+  --ink: #1b1f24; --ink-2: #555d67; --ink-3: #7d858e;
+  --plate: #a97f45; --plate-ink: #3d2a12;
+  --go: #00ae42; --go-2: #009a3a; --amber: #d98a00;
+  --f-cyan: #00a3e0; --f-magenta: #e0367e; --f-yellow: #f2c200; --f-orange: #ff6b1a; --f-violet: #7a5cff; --f-black: #25282d; --f-white: #f4f4f4; --f-green: #3ddc84;
+  --ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --disp: "Archivo", var(--ui);
+  --r: 10px;
+  color: var(--ink); background: var(--vp); font-family: var(--ui); -webkit-font-smoothing: antialiased;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 64px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; overflow-x: hidden; font-size: 16px; line-height: 1.55; }
+a { color: inherit; }
+img { max-width: 100%; display: block; }
+:focus-visible { outline: 2px solid var(--f-cyan); outline-offset: 2px; border-radius: 6px; }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 0 28px; }
+.num { font-family: var(--disp); font-stretch: 80%; font-variant-numeric: tabular-nums; font-weight: 600; }
+code { font: 500 .88em ui-monospace, "SF Mono", Menlo, monospace; background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 5px; padding: 1px 5px; }
+.logo-svg { height: 14px; width: auto; display: block; }
+
+/* ---------------------------------------------------------- top bar (slicer header) */
+.bar { position: fixed; inset: 0 0 auto 0; z-index: 30; height: 56px; display: flex; align-items: center; gap: 18px; padding: 0 16px 0 20px;
+  background: rgba(255,255,255,.94); border-bottom: 1px solid var(--line); }
+.bar .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); }
+.tabs { display: flex; gap: 2px; margin-left: 8px; }
+.tabs a { position: relative; text-decoration: none; padding: 17px 12px 16px; font: 600 13px/1 var(--disp); font-stretch: 88%; color: var(--ink-2); }
+.tabs a:hover { color: var(--ink); }
+.tabs a.on { color: var(--ink); }
+.tabs a.on::after { content: ""; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 2px; background: var(--go); }
+.bar .sp { flex: 1; }
+.seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 9px; }
+.seg button { border: 0; background: none; padding: 6px 11px; border-radius: 6px; font: 600 13px/1 var(--disp); font-stretch: 90%; color: var(--ink-2); cursor: pointer; }
+.seg button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(27,31,36,.14); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 18px; border-radius: 8px; border: 1px solid var(--line);
+  background: #fff; color: var(--ink); font: 650 14px/1 var(--disp); font-stretch: 95%; text-decoration: none; cursor: pointer; transition: background .15s, transform .15s; white-space: nowrap; }
+.btn:hover { background: var(--panel-2); }
+.btn.go { background: var(--go); border-color: var(--go); color: #fff; }
+.btn.go:hover { background: var(--go-2); }
+.btn:active { transform: translateY(1px); }
+.btn.sm { height: 34px; padding: 0 14px; font-size: 13px; }
+.btn .ic { display: inline-flex; }
+
+/* ---------------------------------------------------------- hero: the viewport + layer print */
+#story { position: relative; height: 330vh; }
+.viewport { position: sticky; top: 0; height: 100vh; min-height: 640px; overflow: hidden;
+  background: linear-gradient(180deg, #eef1f3 0%, var(--vp) 46%, var(--vp-2) 100%); }
+#deck3d { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: pan-y; }
+.no-webgl #deck3d { display: none; }
+.fallback-shot { display: none; position: absolute; right: 8%; bottom: 14%; width: min(560px, 50vw); }
+.no-webgl .fallback-shot { display: block; }
+/* floating panel: title + actions */
+.job { position: absolute; left: max(24px, calc(50vw - 600px)); top: 92px; width: min(470px, calc(100vw - 48px)); z-index: 5;
+  background: rgba(255,255,255,.96); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 10px 30px rgba(27,31,36,.12); }
+.job-head { display: flex; align-items: center; gap: 10px; padding: 11px 16px; border-bottom: 1px solid var(--line-2); font: 600 12px/1 var(--disp); font-stretch: 85%; color: var(--ink-2); }
+.job-head .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--go); box-shadow: 0 0 0 3px rgba(0,174,66,.16); }
+.job-head .sp { flex: 1; }
+.job-body { padding: 22px 22px 20px; }
+.job h1 { margin: 0; font: 820 clamp(2.4rem, 4.6vw, 3.9rem)/.95 var(--disp); font-stretch: 116%; letter-spacing: -.025em; text-wrap: balance; }
+.job p { margin: 14px 0 0; color: var(--ink-2); font-size: 18px; max-width: 40ch; }
+.job .acts { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+.job .meta { margin-top: 12px; font-size: 13px; color: var(--ink-3); }
+.job-rows { border-top: 1px solid var(--line-2); display: grid; grid-template-columns: 1fr 1fr; }
+.job-rows div { padding: 10px 16px; font-size: 12px; color: var(--ink-2); }
+.job-rows div + div { border-left: 1px solid var(--line-2); }
+.job-rows b { display: block; color: var(--ink); font: 650 16px/1.2 var(--disp); font-stretch: 85%; font-variant-numeric: tabular-nums; }
+
+/* layer slider (right edge) */
+.layers { position: absolute; right: 22px; top: 92px; bottom: 120px; width: 64px; z-index: 5; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.layers .read { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; text-align: center; font-size: 11px; color: var(--ink-3); line-height: 1.25; min-width: 64px; }
+.layers .read b { display: block; color: var(--ink); font-size: 16px; }
+.rail { position: relative; flex: 1; width: 6px; border-radius: 3px; background: #c4cad0; cursor: ns-resize; touch-action: none; }
+.rail .fill { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 3px; background: var(--f-orange); }
+.rail .thumb { position: absolute; left: 50%; width: 30px; height: 16px; margin: -8px 0 0 -15px; border-radius: 5px; background: #fff; border: 1px solid var(--line); box-shadow: 0 2px 6px rgba(27,31,36,.2); }
+.rail .thumb::after { content: ""; position: absolute; inset: 6px 8px; border-top: 1px solid var(--ink-3); border-bottom: 1px solid var(--ink-3); }
+.layers small { font-size: 11px; color: var(--ink-3); text-align: center; line-height: 1.2; }
+/* filaments = profiles (bottom) */
+.spools { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); z-index: 5; display: flex; align-items: center; gap: 4px; padding: 6px;
+  background: rgba(255,255,255,.96); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 8px 24px rgba(27,31,36,.1); }
+.spools .lbl { padding: 0 10px 0 8px; font: 600 12px/1.15 var(--disp); font-stretch: 85%; color: var(--ink-3); }
+.spools .lbl b { display: block; color: var(--ink); font-size: 13px; }
+.spool { display: flex; align-items: center; gap: 7px; border: 0; background: none; padding: 7px 10px 7px 7px; border-radius: 8px; cursor: pointer; font: 600 13px/1 var(--disp); font-stretch: 90%; color: var(--ink-2); }
+.spool i { width: 18px; height: 18px; border-radius: 50%; background: var(--c); box-shadow: inset 0 0 0 1px rgba(0,0,0,.12), inset 0 0 0 4px rgba(255,255,255,.35); flex: none; }
+.spool:hover { background: var(--panel-2); }
+.spool.on { background: var(--panel-2); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+.scroll-hint { position: absolute; left: max(24px, calc(50vw - 600px)); bottom: 34px; z-index: 5; font-size: 12px; color: var(--ink-3); display: flex; gap: 8px; align-items: center; }
+.scroll-hint kbd { font: 600 11px/1 var(--disp); border: 1px solid var(--line); background: #fff; border-radius: 4px; padding: 3px 5px; color: var(--ink-2); }
+
+/* ---------------------------------------------------------- sections: slicer panels */
+section { padding: 140px 0 120px; }
+.panel-sec { background: var(--panel-2); border-top: 1px solid var(--line); }
+.white { background: #fff; border-top: 1px solid var(--line); }
+.sec-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; align-items: end; margin-bottom: 56px; }
+.tag { display: inline-flex; align-items: center; gap: 8px; font: 650 12px/1 var(--disp); font-stretch: 85%; color: var(--ink-2); border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 6px 11px 6px 8px; margin-bottom: 18px; }
+.tag i { width: 10px; height: 10px; border-radius: 50%; background: var(--c, var(--go)); }
+h2 { margin: 0; font: 820 clamp(2.2rem, 4.4vw, 3.6rem)/1 var(--disp); font-stretch: 114%; letter-spacing: -.025em; text-wrap: balance; }
+.sec-head p { margin: 0; color: var(--ink-2); font-size: 18px; max-width: 52ch; }
+.box { background: #fff; border: 1px solid var(--line); border-radius: var(--r); }
+.box-h { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line-2); font: 650 13px/1 var(--disp); font-stretch: 88%; }
+.box-h .sp { flex: 1; }
+.box-h small { font: 500 12px var(--ui); color: var(--ink-3); }
+
+/* Preparar: checklist */
+.check { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.step { padding: 22px 20px 24px; border-right: 1px solid var(--line-2); }
+.step:last-child { border-right: 0; }
+.step .st { display: flex; align-items: center; gap: 8px; font: 650 12px/1 var(--disp); font-stretch: 85%; color: var(--ink-3); margin-bottom: 14px; }
+.step .st i { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--go); display: grid; place-items: center; }
+.step .st i::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--go); }
+.step b { display: block; font: 750 20px/1.15 var(--disp); font-stretch: 105%; margin-bottom: 6px; }
+.step p { margin: 0; color: var(--ink-2); font-size: 16px; }
+.notes { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+.note { display: flex; gap: 12px; padding: 16px 18px; }
+.note .ic { flex: none; margin-top: 2px; color: var(--ink-2); }
+.note p { margin: 0; font-size: 14px; color: var(--ink-2); }
+.note b { color: var(--ink); }
+
+/* Pré-visualizar: profile picker + key grid */
+.preview { display: grid; grid-template-columns: 260px minmax(0, 1fr); }
+.plist { border-right: 1px solid var(--line-2); padding: 8px; display: flex; flex-direction: column; gap: 2px; max-height: 560px; overflow: auto; }
+.plist button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border: 0; background: none; border-radius: 7px; text-align: left; cursor: pointer; font: 600 14px/1.1 var(--disp); font-stretch: 92%; color: var(--ink-2); }
+.plist button .ic { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; background: var(--panel-2); color: var(--ink); flex: none; }
+.plist button small { display: block; font: 500 11.5px var(--ui); color: var(--ink-3); margin-top: 2px; }
+.plist button:hover { background: var(--panel-2); }
+.plist button.on { background: var(--panel-2); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+.pview { padding: 28px; display: flex; flex-direction: column; gap: 18px; background:
+  linear-gradient(180deg, #f3f5f6, #e7eaed); border-radius: 0 0 var(--r) 0; }
+.pview .keys { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; max-width: 640px; width: 100%; margin: 0 auto; padding: 18px; background: var(--f-black); border-radius: 16px; }
+.k { aspect-ratio: 1; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: #fff;
+  background: color-mix(in srgb, var(--c) 86%, #000); box-shadow: inset 0 1px 0 rgba(255,255,255,.25), inset 0 -3px 0 rgba(0,0,0,.22); transition: background .25s, transform .2s; }
+.k.lite { color: var(--ink); }
+.k .g { height: 30px; display: grid; place-items: center; font: 750 18px/1 var(--disp); font-stretch: 90%; }
+.k .l { font: 600 11px/1 var(--disp); font-stretch: 85%; opacity: .9; max-width: 92%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.k.swap { transform: scale(.94); }
+.pview .cap { text-align: center; font-size: 14px; color: var(--ink-2); }
+
+/* Objetos: object list + detail */
+.objects { display: grid; grid-template-columns: 300px minmax(0, 1fr); }
+.tree { border-right: 1px solid var(--line-2); padding: 10px 8px; font-size: 14px; }
+.tree .grp { display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 10px; border: 0; background: none; border-radius: 7px; cursor: pointer; font: 700 14px/1.1 var(--disp); font-stretch: 95%; color: var(--ink); text-align: left; }
+.tree .grp.on { background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.tree ul { list-style: none; margin: 2px 0 10px 18px; padding: 0 0 0 12px; border-left: 1px solid var(--line-2); }
+.tree li { display: flex; align-items: center; gap: 8px; padding: 5px 4px; color: var(--ink-2); font-size: 13px; }
+.tree li i { width: 10px; height: 10px; border-radius: 3px; background: var(--c); box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); flex: none; }
+.tree li em { margin-left: auto; font-style: normal; font-size: 11px; color: var(--ink-3); }
+.odetail { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
+.ostage { position: relative; min-height: 420px; display: grid; place-items: center; padding: 30px; background:
+  radial-gradient(ellipse at 50% 72%, rgba(169,127,69,.18), transparent 60%), linear-gradient(180deg, #f3f5f6, #e5e8eb); }
+.ostage img { width: 100%; max-width: 560px; height: auto; filter: drop-shadow(0 18px 22px rgba(27,31,36,.22)); }
+.ostage .chip { position: absolute; left: 16px; top: 16px; }
+.params { border-left: 1px solid var(--line-2); }
+.prow { display: flex; justify-content: space-between; gap: 16px; padding: 11px 18px; border-bottom: 1px solid var(--line-2); font-size: 14px; }
+.prow span:first-child { color: var(--ink-2); }
+.prow span:last-child { text-align: right; font-weight: 550; }
+.prow:last-child { border-bottom: 0; }
+.ohide { display: none; }
+.faces { margin-top: 16px; }
+.faces .strip { padding: 22px; background: linear-gradient(180deg, #f3f5f6, #e7eaed); border-radius: 0 0 var(--r) var(--r); }
+.faces .strip img { width: 100%; height: auto; }
+.faces .names { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; padding: 12px 22px 18px; font-size: 13px; color: var(--ink-2); }
+.faces .names span { display: flex; align-items: center; gap: 7px; }
+.faces .names i { width: 12px; height: 12px; border-radius: 50%; background: var(--c); box-shadow: inset 0 0 0 1px rgba(0,0,0,.15); }
+
+/* Processo: grouped parameters */
+.proc { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.pg { overflow: hidden; }
+.pg summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 14px 18px; font: 750 16px/1.1 var(--disp); font-stretch: 100%; }
+.pg summary::-webkit-details-marker { display: none; }
+.pg summary i { width: 12px; height: 12px; border-radius: 50%; background: var(--c); }
+.pg summary .chev { margin-left: auto; transition: transform .2s; color: var(--ink-3); }
+.pg[open] summary { border-bottom: 1px solid var(--line-2); }
+.pg[open] summary .chev { transform: rotate(180deg); }
+.pg .prow span:last-child { color: var(--ink); }
+.pg .prow span:first-child { color: var(--ink); font-weight: 550; }
+.pg .prow small { display: block; color: var(--ink-2); font-weight: 400; font-size: 13px; margin-top: 2px; }
+.pg .prow .v { font: 600 13px/1.2 var(--disp); font-stretch: 85%; font-variant-numeric: tabular-nums; color: var(--ink-2) !important; white-space: nowrap; padding-top: 2px; }
+.shot { margin-top: 16px; overflow: hidden; }
+.shot img { width: 100%; height: auto; }
+
+/* Imprimir: download + waitlist */
+.print { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; align-items: stretch; }
+.dev { display: flex; align-items: center; gap: 16px; padding: 18px 20px; border-bottom: 1px solid var(--line-2); text-decoration: none; }
+.dev:last-of-type { border-bottom: 0; }
+.dev .ic { width: 44px; height: 44px; border-radius: 10px; background: var(--panel-2); display: grid; place-items: center; flex: none; color: var(--ink); }
+.dev b { display: block; font: 750 18px/1.1 var(--disp); font-stretch: 100%; }
+.dev small { color: var(--ink-2); font-size: 13px; }
+.dev .btn { margin-left: auto; }
+.dev.rec .btn { background: var(--go); border-color: var(--go); color: #fff; }
+.dl-foot { padding: 12px 20px; border-top: 1px solid var(--line-2); font-size: 13px; color: var(--ink-3); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.wait { display: flex; flex-direction: column; }
+.wait .body { padding: 22px 22px 8px; }
+.wait h3 { margin: 0 0 8px; font: 800 26px/1.05 var(--disp); font-stretch: 108%; letter-spacing: -.015em; }
+.wait p { margin: 0 0 14px; color: var(--ink-2); font-size: 16px; }
+.wait .acts { display: flex; flex-wrap: wrap; gap: 10px; padding: 0 22px 22px; margin-top: auto; }
+
+/* Avisos: FAQ as warnings */
+.warns { max-width: 880px; }
+.warn { border-bottom: 1px solid var(--line-2); }
+.warn:last-child { border-bottom: 0; }
+.warn summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 16px 18px; font-weight: 600; font-size: 16px; }
+.warn summary::-webkit-details-marker { display: none; }
+.warn summary svg { flex: none; color: var(--amber); }
+.warn summary .chev { margin-left: auto; color: var(--ink-3); transition: transform .2s; }
+.warn[open] summary .chev { transform: rotate(180deg); }
+.warn p { margin: 0; padding: 0 18px 18px 50px; color: var(--ink-2); font-size: 16px; max-width: 72ch; }
+
+footer { padding: 36px 0 48px; border-top: 1px solid var(--line); background: #fff; font-size: 13px; color: var(--ink-2); }
+footer .wrap { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; align-items: center; }
+footer a { text-decoration: none; }
+footer a:hover { color: var(--ink); }
+
+/* ---------------------------------------------------------- responsive */
+@media (max-width: 1080px) {
+  .tabs { display: none; }
+  .sec-head { grid-template-columns: 1fr; gap: 16px; }
+  .check { grid-template-columns: 1fr 1fr; }
+  .step:nth-child(2) { border-right: 0; }
+  .step:nth-child(-n+2) { border-bottom: 1px solid var(--line-2); }
+  .objects, .preview { grid-template-columns: 1fr; }
+  .tree, .plist { border-right: 0; border-bottom: 1px solid var(--line-2); }
+  .plist { flex-direction: row; overflow-x: auto; max-height: none; }
+  .plist button { width: auto; flex: none; }
+  .plist button small { display: none; }
+  .odetail { grid-template-columns: 1fr; }
+  .params { border-left: 0; border-top: 1px solid var(--line-2); }
+  .proc, .print, .notes { grid-template-columns: 1fr; }
+}
+@media (max-width: 720px) {
+  section { padding: 96px 0 80px; }
+  .wrap { padding: 0 18px; }
+  .bar { gap: 10px; padding: 0 12px; }
+  .bar .go-top { display: none; }
+  .seg button { padding: 6px 8px; font-size: 12px; }
+  .job { top: 72px; left: 12px; width: calc(100vw - 24px); }
+  .job-body { padding: 16px 16px 14px; }
+  .job p { font-size: 16px; }
+  .job-rows { display: none; }
+  .layers { top: auto; bottom: 92px; right: 12px; left: 12px; width: auto; height: 44px; flex-direction: row; }
+  .layers .rail { height: 6px; flex: 1; width: auto; cursor: ew-resize; }
+  .rail .fill { top: 0; bottom: 0; right: auto; }
+  .rail .thumb { top: 50%; width: 16px; height: 26px; margin: -13px 0 0 -8px; }
+  .rail .thumb::after { inset: 7px 5px; border: 0; border-left: 1px solid var(--ink-3); border-right: 1px solid var(--ink-3); }
+  .layers small { display: none; }
+  .spools { bottom: 18px; max-width: calc(100vw - 24px); overflow-x: auto; }
+  .spools .lbl { display: none; }
+  .scroll-hint { display: none; }
+  .check { grid-template-columns: 1fr; }
+  .step { border-right: 0 !important; border-bottom: 1px solid var(--line-2); }
+  .step:last-child { border-bottom: 0; }
+  .pview { padding: 14px; }
+  .pview .keys { gap: 7px; padding: 10px; border-radius: 12px; }
+  .k { border-radius: 9px; }
+  .k .g { height: 22px; font-size: 13px; }
+  .k .g svg { width: 20px; height: 20px; }
+  .k .l { font-size: 11px; }
+  .faces .names { grid-template-columns: repeat(3, 1fr); }
+  .dev { flex-wrap: wrap; }
+  .dev .btn { margin-left: 60px; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <a class="brand" href="#" aria-label="DIV Deck, início">{{LOGO}}</a>
+  <nav class="tabs" aria-label="Secções">
+    <a href="#comecar">Preparar</a>
+    <a href="#perfis">Pré-visualizar</a>
+    <a href="#objetos">Objetos</a>
+    <a href="#recursos">Processo</a>
+    <a href="#baixar">Imprimir</a>
+    <a href="#perguntas">Avisos</a>
+  </nav>
+  <span class="sp"></span>
+  <div class="seg" role="tablist" aria-label="Modelo">
+    <button role="tab" data-set-model="mx" aria-selected="true">DIV Deck MX</button>
+    <button role="tab" data-set-model="pro" aria-selected="false">DIV Deck Pro</button>
+  </div>
+  <a class="btn go sm go-top hero-dl" href="#baixar"><span>Baixar o app</span></a>
+</header>
+
+<div id="story">
+  <div class="viewport" id="stage">
+    <canvas id="deck3d" aria-label="O DIV Deck sendo impresso camada a camada numa placa de impressão; no fim, as teclas acendem e mudam conforme o app"></canvas>
+    <img class="fallback-shot" src="img/mx.webp" alt="DIV Deck MX com a cápsula OLED e a face Código">
+
+    <div class="job">
+      <div class="job-head"><span class="dot"></span><span>Placa 1 · <span class="model-name">DIV Deck MX</span></span><span class="sp"></span><span class="num" id="job-pct">0%</span></div>
+      <div class="job-body">
+        <h1>As teclas mudam com o app.</h1>
+        <p>Abriu o Figma, as teclas viram ferramentas do Figma. Voltou ao código, viram atalhos do VS Code. Um app grátis para Mac e Windows, e dois decks para escolher.</p>
+        <div class="acts">
+          <a class="btn go hero-dl" href="#baixar"><span>Baixar o app</span></a>
+          <a class="btn" href="mailto:contato@divtecnologia.com.br?subject=Lista%20de%20espera%20DIV%20Deck&amp;body=Quero%20entrar%20na%20lista%20de%20espera%20do%3A%20DIV%20Deck%20MX%20%2F%20DIV%20Deck%20Pro%20(apague%20o%20que%20n%C3%A3o%20quer)%0A%0ANome%3A%0ACidade%2Fpa%C3%ADs%3A">Entrar na lista de espera</a>
+        </div>
+        <div class="meta" id="hero-meta">macOS 12+ · Windows 10/11 · grátis</div>
+      </div>
+      <div class="job-rows">
+        <div>Tempo até começar<b>2 min</b></div>
+        <div>App em foco<b id="story-profile">Padrão</b></div>
+      </div>
+    </div>
+
+    <div class="layers" aria-label="Camadas">
+      <div class="read"><b class="num" id="layer-n">0</b>de <span class="num" id="layer-t">214</span></div>
+      <div class="rail" id="rail" role="slider" tabindex="0" aria-label="Camada impressa" aria-valuemin="0" aria-valuemax="214" aria-valuenow="0">
+        <div class="fill" id="rail-fill"></div><div class="thumb" id="rail-thumb"></div>
+      </div>
+      <small><span class="num" id="layer-mm">0,0</span> mm</small>
+    </div>
+
+    <div class="spools" role="group" aria-label="Perfil nas teclas">
+      <div class="lbl">Filamento<b>= perfil</b></div>
+      <button class="spool" data-profile="default" style="--c:#38d6ff"><i></i>Padrão</button>
+      <button class="spool" data-profile="vscode" style="--c:#3ea6ff"><i></i>VS Code</button>
+      <button class="spool" data-profile="figma" style="--c:#f24e1e"><i></i>Figma</button>
+      <button class="spool" data-profile="discord" style="--c:#5865f2"><i></i>Discord</button>
+    </div>
+    <div class="scroll-hint"><kbd>↓</kbd> Role para imprimir o deck</div>
+  </div>
+</div>
+
+<!-- ======================================================= Preparar -->
+<section class="white" id="comecar"><div class="wrap">
+  <div class="sec-head">
+    <div><span class="tag"><i></i>Preparar</span><h2>Comece em dois minutos.</h2></div>
+    <p>Chegou pelo QR code da caixa? São quatro passos, e o deck mostra quando está pronto: sem o app, as teclas fazem uma onda azul; com o app, aparece o perfil.</p>
+  </div>
+  <div class="box check">
+    <div class="step"><div class="st"><i></i>Passo 1</div><b>Ligue o deck</b><p>Cabo USB de dados no computador. O MX acende uma onda azul; o Pro mostra “Abra o app DIV Deck”.</p></div>
+    <div class="step"><div class="st"><i></i>Passo 2</div><b>Instale o app</b><p>Baixe o instalador do seu sistema <a href="#baixar">aqui embaixo</a> e abra.</p></div>
+    <div class="step"><div class="st"><i></i>Passo 3</div><b>Dê as permissões</b><p>No Mac: <em>Acessibilidade</em> para enviar atalhos. Para gravar macros e trocar o teclado Logitech, também <em>Monitorização de entrada</em>.</p></div>
+    <div class="step"><div class="st"><i></i>Passo 4</div><b>Escolha um perfil</b><p>Já vem com perfis para os apps que você usa. O deck segue o app em foco sozinho.</p></div>
+  </div>
+  <div class="notes">
+    <div class="box note"><span class="ic" data-icon="apple" data-size="20"></span><p><b>Primeira abertura no Mac.</b> Se o macOS disser que não pode verificar o app: botão direito em <b>DIV Deck</b> › <b>Abrir</b> › <b>Abrir</b>. Só na primeira vez; as próximas versões mantêm as permissões.</p></div>
+    <div class="box note"><span class="ic" data-icon="windows" data-size="18"></span><p><b>Primeira abertura no Windows.</b> Se aparecer “O Windows protegeu o computador”: <b>Mais informações</b> › <b>Executar assim mesmo</b>. O deck é detectado sozinho pela porta USB.</p></div>
+  </div>
+</div></section>
+
+<!-- ======================================================= Pré-visualizar -->
+<section class="panel-sec" id="perfis"><div class="wrap">
+  <div class="sec-head">
+    <div><span class="tag" style="--c:var(--f-magenta)"><i></i>Pré-visualizar</span><h2>Um perfil para cada app.</h2></div>
+    <p>Estes vêm prontos e funcionam desde o primeiro minuto. Escolha um para ver o que cada tecla faz; no app você edita, duplica ou cria os seus.</p>
+  </div>
+  <div class="box">
+    <div class="box-h">Perfis prontos <span class="sp"></span><small>Ícones de marca: Simple Icons. Marcas dos respectivos donos.</small></div>
+    <div class="preview">
+      <div class="plist" id="plist" role="tablist" aria-label="Perfis"></div>
+      <div class="pview">
+        <div class="keys" id="pkeys" aria-live="polite"></div>
+        <div class="cap" id="pcap"></div>
+      </div>
+    </div>
+  </div>
+</div></section>
+
+<!-- ======================================================= Objetos -->
+<section class="white" id="objetos"><div class="wrap">
+  <div class="sec-head">
+    <div><span class="tag" style="--c:var(--plate)"><i></i>Objetos</span><h2>Dois decks, as mesmas teclas.</h2></div>
+    <p>O DIV Deck MX tem teclas mecânicas de verdade; o DIV Deck Pro troca-as por uma tela de toque. Os dois usam o mesmo app e os mesmos perfis, e ambos são impressos em 3D, com faces que se trocam.</p>
+  </div>
+  <div class="box">
+    <div class="box-h">Objetos na placa <span class="sp"></span><small>Renders dos modelos atuais</small></div>
+    <div class="objects">
+      <div class="tree">
+        <button class="grp on" data-obj="mx">DIV Deck MX</button>
+        <ul>
+          <li><i style="--c:#2b2e33"></i>Caixa em cunha <em>30°</em></li>
+          <li><i style="--c:#1c1f24"></i>Face trocável <em>de encaixe</em></li>
+          <li><i style="--c:#f3f5f8"></i>15 keycaps translúcidas</li>
+          <li><i style="--c:#3ddc84"></i>Cápsula OLED <em>opcional</em></li>
+        </ul>
+        <button class="grp" data-obj="pro">DIV Deck Pro</button>
+        <ul>
+          <li><i style="--c:#e8e9ec"></i>Corpo</li>
+          <li><i style="--c:#16181c"></i>Moldura trocável <em>3 cores</em></li>
+          <li><i style="--c:#050506"></i>Tela de toque 4"</li>
+          <li><i style="--c:#7a5cff"></i>Caneta e ímanes</li>
+        </ul>
+      </div>
+      <div class="odetail" data-for="mx">
+        <div class="ostage"><img src="img/mx.webp" alt="DIV Deck MX com a cápsula OLED por cima das teclas e a face Código" loading="lazy" width="1100" height="820"></div>
+        <div class="params">
+          <div class="prow"><span>Teclas</span><span>15 mecânicas MX, hot-swap</span></div>
+          <div class="prow"><span>Luz</span><span>LED RGB por tecla, cor por perfil</span></div>
+          <div class="prow"><span>Face</span><span>Trocável: Básica, Código, Topográfica, Futurista, Gamer</span></div>
+          <div class="prow"><span>Cápsula OLED</span><span>Encaixa atrás: hora, data e perfil</span></div>
+          <div class="prow"><span>Montagem</span><span>Braço do monitor (tubo de 35 mm) ou mesa</span></div>
+          <div class="prow"><span>Ligação</span><span>USB · ESP32</span></div>
+        </div>
+      </div>
+      <div class="odetail ohide" data-for="pro">
+        <div class="ostage"><img src="img/pro.webp" alt="DIV Deck Pro: tela de toque de 4 polegadas com 15 teclas desenhadas, no pé de mesa" loading="lazy" width="1100" height="820"></div>
+        <div class="params">
+          <div class="prow"><span>Tela</span><span>4" de toque, 480 × 320</span></div>
+          <div class="prow"><span>Teclas</span><span>15, com ícone, nome e cor desenhados pelo app</span></div>
+          <div class="prow"><span>Barra de estado</span><span>Hora, data e perfil, à escolha</span></div>
+          <div class="prow"><span>Bloqueio</span><span>Deslize de cima para bloquear</span></div>
+          <div class="prow"><span>Montagem</span><span>Braçadeira com ímanes no braço do monitor, ou pé de mesa</span></div>
+          <div class="prow"><span>Ligação</span><span>USB-C · ESP32-S3</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="box faces">
+    <div class="box-h">Faces do DIV Deck MX <span class="sp"></span><small>Troque a face sem ferramentas; imprima a sua em duas cores</small></div>
+    <div class="strip"><img src="img/faces.webp" alt="Cinco faces do DIV Deck MX: Básica, Código, Topográfica, Futurista e Gamer" loading="lazy" width="3160" height="442"></div>
+    <div class="names">
+      <span><i style="--c:#d9d4cb"></i>Básica</span>
+      <span><i style="--c:#3ddc84"></i>Código</span>
+      <span><i style="--c:#b8733a"></i>Topográfica</span>
+      <span><i style="--c:#38d6ff"></i>Futurista</span>
+      <span><i style="--c:#ff2d55"></i>Gamer</span>
+    </div>
+  </div>
+</div></section>
+
+<!-- ======================================================= Processo -->
+<section class="panel-sec" id="recursos"><div class="wrap">
+  <div class="sec-head">
+    <div><span class="tag" style="--c:var(--f-cyan)"><i></i>Processo</span><h2>O que cada tecla pode fazer.</h2></div>
+    <p>O app mora na barra de menus e configura as teclas do MX e do Pro. Tudo o que está aqui existe na versão atual.</p>
+  </div>
+  <div class="proc">
+    <div>
+      <details class="box pg" open style="--c:var(--f-cyan)">
+        <summary><i></i>Ações <span class="chev">⌄</span></summary>
+        <div class="prow"><span>Abrir app<small>Ou trazer para a frente se já está aberto.</small></span><span class="v">1 toque</span></div>
+        <div class="prow"><span>Atalho<small>Grave apertando as teclas.</small></span><span class="v">⌘ ⌥ ⇧ ⌃</span></div>
+        <div class="prow"><span>Mídia e volume<small>Com o Spotify aberto, vai direto para ele.</small></span><span class="v">▶ ⏭ 🔊</span></div>
+        <div class="prow"><span>Texto e prompts<small>Perfis de ChatGPT e Claude com prompts prontos.</small></span><span class="v">↩ enviar</span></div>
+        <div class="prow"><span>Comando e link<small>Scripts, projetos, <code>steam://</code>, <code>slack://</code>.</small></span><span class="v">zsh · cmd</span></div>
+      </details>
+      <details class="box pg" open style="--c:var(--f-orange); margin-top:16px">
+        <summary><i></i>Macros <span class="chev">⌄</span></summary>
+        <div class="prow"><span>Sequência<small>Atalhos, textos, pausas, cliques e apps, por ordem.</small></span><span class="v">passos</span></div>
+        <div class="prow"><span>Gravar macro<small>Uma tecla do deck começa, outra termina. Com os tempos reais.</small></span><span class="v">● REC</span></div>
+        <div class="prow"><span>Tecla para jogos<small>Carrega e solta como uma pessoa; repete com intervalo.</small></span><span class="v">40 ms · ×3</span></div>
+        <div class="prow"><span>Ritmo exato<small>Sem pausa automática entre passos.</small></span><span class="v">on</span></div>
+      </details>
+    </div>
+    <div>
+      <details class="box pg" open style="--c:var(--f-violet)">
+        <summary><i></i>Dispositivos <span class="chev">⌄</span></summary>
+        <div class="prow"><span>Trocar pelo app em foco<small>O perfil muda sozinho; ao editar no app, fica parado.</small></span><span class="v">auto</span></div>
+        <div class="prow"><span>Vários decks<small>MX e Pro ligados ao mesmo tempo, cada um com o seu perfil.</small></span><span class="v">MX + Pro</span></div>
+        <div class="prow"><span>Arrastar para organizar<small>Solte uma tecla sobre outra e elas trocam de lugar.</small></span><span class="v">drag</span></div>
+        <div class="prow"><span>Hora, data e perfil<small>Barra de estado no Pro, tela OLED no MX.</small></span><span class="v">14:32</span></div>
+      </details>
+      <details class="box pg" open style="--c:var(--f-yellow); margin-top:16px">
+        <summary><i></i>Teclado e rato Logitech <span class="chev">⌄</span></summary>
+        <div class="prow"><span>Trocar de computador<small>Como o Easy-Switch: cada aparelho vai para o seu canal, sem o Logi Options+.</small></span><span class="v">1 · 2 · 3</span></div>
+      </details>
+      <details class="box pg" open style="--c:var(--go); margin-top:16px">
+        <summary><i></i>Atualizações <span class="chev">⌄</span></summary>
+        <div class="prow"><span>Automáticas<small>O app avisa e instala com um clique; teclas e perfis ficam onde estão.</small></span><span class="v">1 clique</span></div>
+      </details>
+    </div>
+  </div>
+  <div class="box shot">
+    <div class="box-h">O app no Mac <span class="sp"></span><small>Editando o perfil do DIV Deck Pro</small></div>
+    <picture><source srcset="img/app-pro-light.jpg" media="(prefers-color-scheme: light)"><img src="img/app-pro-dark.jpg" alt="O app DIV Deck no Mac editando uma tecla do DIV Deck Pro" loading="lazy"></picture>
+  </div>
+</div></section>
+
+<!-- ======================================================= Imprimir -->
+<section class="white" id="baixar"><div class="wrap">
+  <div class="sec-head">
+    <div><span class="tag"><i></i>Imprimir</span><h2>Baixe o app. Reserve o seu deck.</h2></div>
+    <p>O app é grátis, para sempre. O hardware ainda não está à venda: entre na lista de espera e avisamos quando abrir. Quer montar o seu? O código e o firmware estão no GitHub.</p>
+  </div>
+  <div class="print">
+    <div class="box">
+      <div class="box-h">Instalador <span class="sp"></span><small id="version">Versão mais recente no GitHub</small></div>
+      <a class="dev" id="dl-mac" href="https://github.com/isaacviannadev/div-deck/releases/latest">
+        <span class="ic" data-icon="apple" data-size="24"></span>
+        <span><b>macOS</b><small>Apple Silicon e Intel · macOS 12 ou mais novo</small></span>
+        <span class="btn sm">Baixar .dmg</span>
+      </a>
+      <a class="dev" id="dl-win" href="https://github.com/isaacviannadev/div-deck/releases/latest">
+        <span class="ic" data-icon="windows" data-size="22"></span>
+        <span><b>Windows</b><small>Windows 10 e 11 · 64-bit</small></span>
+        <span class="btn sm">Baixar instalador</span>
+      </a>
+      <div class="dl-foot"><span>Atualiza sozinho depois de instalado.</span><a href="https://github.com/isaacviannadev/div-deck/releases">Todas as versões ›</a></div>
+    </div>
+    <div class="box wait">
+      <div class="box-h">Hardware <span class="sp"></span><small>Lista de espera</small></div>
+      <div class="body">
+        <h3>DIV Deck MX e DIV Deck Pro</h3>
+        <p>Sem preço ainda. Deixe o seu contacto e diga qual quer; escrevemos quando abrir.</p>
+      </div>
+      <div class="acts">
+        <a class="btn go" href="mailto:contato@divtecnologia.com.br?subject=Lista%20de%20espera%20DIV%20Deck&amp;body=Quero%20entrar%20na%20lista%20de%20espera%20do%3A%20DIV%20Deck%20MX%20%2F%20DIV%20Deck%20Pro%20(apague%20o%20que%20n%C3%A3o%20quer)%0A%0ANome%3A%0ACidade%2Fpa%C3%ADs%3A">Entrar na lista de espera</a>
+        <a class="btn" href="https://github.com/isaacviannadev/div-deck"><span class="ic" data-icon="github" data-size="16"></span>Montar o seu</a>
+      </div>
+    </div>
+  </div>
+</div></section>
+
+<!-- ======================================================= Avisos -->
+<section class="panel-sec" id="perguntas"><div class="wrap">
+  <div class="sec-head">
+    <div><span class="tag" style="--c:var(--amber)"><i></i>Avisos</span><h2>Perguntas.</h2></div>
+    <p>O que costuma aparecer na primeira vez, e como resolver.</p>
+  </div>
+  <div class="box warns">
+    <details class="warn"><summary>{{WARN}}O deck não aparece como conectado.<span class="chev">⌄</span></summary><p>Use um cabo USB de dados (alguns cabos só carregam). No DIV Deck MX, se o computador não reconhecer a porta, instale o driver <a href="https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers">CP210x</a>. Feche outros programas que usem a porta serial (Arduino IDE, monitor serial).</p></details>
+    <details class="warn"><summary>{{WARN}}O deck mostra uma onda azul ou “Abra o app”.<span class="chev">⌄</span></summary><p>É de propósito: as teclas só fazem alguma coisa com o app aberto, por isso o deck espera por ele. Abra o DIV Deck e o perfil aparece em poucos segundos. Se o Mac dormir, o deck volta a esperar e retoma sozinho quando ele acordar.</p></details>
+    <details class="warn"><summary>{{WARN}}Os atalhos não funcionam no Mac.<span class="chev">⌄</span></summary><p>Falta a permissão de Acessibilidade. Em <em>Ajustes › Privacidade e Segurança › Acessibilidade</em>, ative o <b>DIV Deck</b>. Se ele já estiver ativo e mesmo assim não funcionar, remova-o com “–”, adicione de novo com “+” e ative.</p></details>
+    <details class="warn"><summary>{{WARN}}O perfil não muda sozinho.<span class="chev">⌄</span></summary><p>Ative “Trocar pelo app em foco” e confira se o app está vinculado ao perfil (botão “Vincular app”). Enquanto a janela do DIV Deck está em foco o perfil não muda, de propósito, para você editar em paz.</p></details>
+    <details class="warn"><summary>{{WARN}}Como gravo uma macro?<span class="chev">⌄</span></summary><p>No editor da tecla, escolha <b>Sequência</b> › <b>Gravar macro</b>. Vá para o jogo ou app, carregue numa tecla do deck para começar, faça a combinação e carregue de novo para terminar. Teclas repetidas viram “E ×3” e dá para ajustar tempos e passos depois. No Mac, a gravação precisa da permissão <em>Monitorização de entrada</em>.</p></details>
+    <details class="warn"><summary>{{WARN}}Como troco o teclado e o rato Logitech de computador?<span class="chev">⌄</span></summary><p>Crie uma tecla <b>Trocar PC</b> e escolha o canal (1, 2 ou 3) de cada aparelho: cada um guarda os seus computadores. Funciona com teclados e ratos Logitech com Easy-Switch, por Bluetooth ou receptor, sem o Logi Options+. Ponha também uma tecla para voltar no deck do outro computador.</p></details>
+    <details class="warn"><summary>{{WARN}}Posso usar macros em jogos?<span class="chev">⌄</span></summary><p>Pode: “Tecla (jogos)” carrega e solta como uma pessoa e “Ritmo exato” mantém o tempo de cada passo. Confira as regras de cada jogo: alguns proíbem macros em partidas competitivas.</p></details>
+    <details class="warn"><summary>{{WARN}}Posso trocar a face, os switches e as keycaps?<span class="chev">⌄</span></summary><p>Sim. A face do DIV Deck MX sai com a mão e há cinco modelos para imprimir. As teclas usam sockets hot-swap para switches MX de 3 e 5 pinos, e keycaps MX padrão servem. No Pro, a moldura da tela também troca.</p></details>
+    <details class="warn"><summary>{{WARN}}Como prendo o deck no braço do monitor?<span class="chev">⌄</span></summary><p>A braçadeira aperta no tubo de 35 mm e leva uma placa com ímanes; o deck encaixa e sai com a mão. Na mesa, fica num pé simples.</p></details>
+  </div>
+</div></section>
+
+<footer><div class="wrap">
+  <span style="display:flex;align-items:center;gap:12px">{{LOGO}} © DIV Tecnologia</span>
+  <span><a href="https://github.com/isaacviannadev/div-deck">Código no GitHub</a> · <a href="https://github.com/isaacviannadev/div-deck/releases">Todas as versões</a> · <a href="mailto:contato@divtecnologia.com.br">contato@divtecnologia.com.br</a></span>
+</div></footer>
+
+<script type="module" src="assets/app.js"></script>
+</body>
+</html>
