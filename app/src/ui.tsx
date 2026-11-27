@@ -111,7 +111,7 @@ export function defaultAction(type: ActionType, profiles: Profile[]): Action {
     case "key": return { type, key: "", holdMs: 40, repeat: 1, gapMs: 60 };
     case "keyEvent": return { type, key: "", down: true };
     case "mouse": return { type, button: "left" };
-    case "changeHost": return { type, host: 2, devices: [] };
+    case "changeHost": return { type, targets: [] };
   }
 }
 
@@ -131,6 +131,14 @@ export function keyLabel(key: string): string {
   if (mods[key]) return mods[key];
   return KEY_GLYPH[key] ?? (key.length === 1 ? key.toUpperCase() : key);
 }
+/** Targets of a ChangeHost, also for the 0.6.0 form (one channel for every device). */
+export function hostTargets(a: Extract<Action, { type: "changeHost" }>) {
+  if (a.targets?.length) return a.targets.filter((t) => t.host >= 1);
+  if (!a.host) return [];
+  return a.devices?.length ? a.devices.map((device) => ({ device, host: a.host! })) : [{ device: "", host: a.host }];
+}
+/** "MX Master 4 for Mac" -> "MX Master 4" */
+export const shortDevice = (n: string) => n.replace(/\s+for (Mac|Business)$/i, "");
 const MOUSE_LABEL = { left: "esquerdo", right: "direito", middle: "do meio" } as const;
 
 const MOD_ORDER = ["ctrl", "alt", "shift", "cmd"];
@@ -189,7 +197,11 @@ export function actionSummary(a: Action, profiles: Profile[]): string {
     case "key": return a.key ? `${keyLabel(a.key)}${a.repeat > 1 ? ` ×${a.repeat}` : ""}` : "Escolha a tecla";
     case "keyEvent": return a.key ? `${a.down ? "Premir" : "Soltar"} ${keyLabel(a.key)}` : "Escolha a tecla";
     case "mouse": return `${a.down === undefined ? "Clique" : a.down ? "Premir botão" : "Soltar botão"} ${MOUSE_LABEL[a.button]}`;
-    case "changeHost": return `Teclado e rato → PC ${a.host}`;
+    case "changeHost": {
+      const t = hostTargets(a);
+      if (!t.length) return "Escolha os canais";
+      return t.map((x) => `${x.device ? shortDevice(x.device) : "Todos"} → ${x.host}`).join(", ");
+    }
     case "sequence": return a.steps.length ? `${a.steps.length} passo${a.steps.length > 1 ? "s" : ""}: ${a.steps.filter((x) => x.type !== "wait").map((x) => actionSummary(x, profiles)).slice(0, 2).join(", ")}` : "Sequência vazia";
   }
 }

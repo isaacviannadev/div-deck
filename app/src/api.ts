@@ -19,7 +19,10 @@ export type Action =
   | { type: "key"; key: string; holdMs: number; repeat: number; gapMs: number }
   | { type: "keyEvent"; key: string; down: boolean }
   | { type: "mouse"; button: "left" | "right" | "middle"; down?: boolean }
-  | { type: "changeHost"; host: number; devices: string[] };
+  | { type: "changeHost"; targets: HostTarget[]; host?: number; devices?: string[] };
+
+/** Easy-Switch: this device goes to this computer channel (1-3). */
+export interface HostTarget { device: string; host: number }
 
 export interface LogiDevice { name: string; hosts: number; current: number }
 export type MacroState = { state: "idle" | "armed" | "recording"; steps?: Action[]; error?: string };

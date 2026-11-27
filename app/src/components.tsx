@@ -3,7 +3,7 @@ import { COLS, api, isWindows, type Action, type AppInfo, type DeckModel, type K
 import { EMOJI, FACE_H, FACE_W, brands, drawFace, drawKeyIcon, imageFileToIcon } from "./tileIcons";
 import { confirmDialog, toast } from "./feedback";
 import {
-  ACTION_TYPES, AppIcon, Icon, MEDIA, MODS, STEP_TYPES, actionIcon, actionSummary, defaultAction, formatShortcut, keyFromEvent, keyLabel, useApps,
+  ACTION_TYPES, AppIcon, Icon, MEDIA, MODS, STEP_TYPES, actionIcon, actionSummary, defaultAction, formatShortcut, hostTargets, keyFromEvent, keyLabel, shortDevice, useApps,
 } from "./ui";
 
 // ------------------------------------------------------------------ app picker
@@ -233,7 +233,7 @@ function actionReady(a: Action): boolean {
     case "shell": return a.command.trim().length > 0;
     case "media": case "switchProfile": case "wait": case "mouse": return true;
     case "key": case "keyEvent": return !!a.key;
-    case "changeHost": return a.host >= 1 && a.host <= 3;
+    case "changeHost": return hostTargets(a).length > 0;
     case "sequence": return a.steps.length > 0 && a.steps.every(actionReady);
   }
 }
@@ -550,42 +550,71 @@ function KeyCapture({ value, onChange, modifiers = false }: { value: string; onC
   );
 }
 
-/** Logitech Easy-Switch: which channel, and which devices (none ticked = all). */
+/** Logitech Easy-Switch: each device gets its own channel (or stays where it is). */
 function ChangeHostFields({ a, inStep, onChange }: { a: Extract<Action, { type: "changeHost" }>; inStep: boolean; onChange: (a: Action, label?: string) => void }) {
   const [devs, setDevs] = useState<LogiDevice[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [dest, setDest] = useState("");
   const load = () => { setErr(null); setDevs(null); api.logiDevices().then(setDevs).catch((e) => { setDevs([]); setErr(String(e)); }); };
   useEffect(load, []);
-  const toggle = (n: string) => onChange({ ...a, devices: a.devices.includes(n) ? a.devices.filter((x) => x !== n) : [...a.devices, n] });
+  const targets = hostTargets(a);
+  // 0.6.0 form ("every device -> channel N") is shown per device once the list is known
+  const chanFor = (name: string) => targets.find((t) => t.device === name)?.host ?? targets.find((t) => t.device === "")?.host ?? 0;
+  const names = [...new Set([...(devs ?? []).map((d) => d.name), ...targets.filter((t) => t.device).map((t) => t.device)])];
+  const setChan = (name: string, host: number) => {
+    const next = names.map((n) => ({ device: n, host: n === name ? host : chanFor(n) })).filter((t) => t.host >= 1);
+    onChange({ type: "changeHost", targets: next });
+  };
+  const all = (host: number) => onChange({ type: "changeHost", targets: names.map((device) => ({ device, host })) }, !inStep && !dest ? `PC ${host}` : undefined);
   return (
     <div className="hoststep">
-      <div className="seg">
-        {[1, 2, 3].map((h) => (
-          <button key={h} className={a.host === h ? "on" : ""} onClick={() => onChange({ ...a, host: h }, `PC ${h}`)}>Canal {h}</button>
-        ))}
-      </div>
-      {!inStep && <p className="hint">Muda o teclado e o rato Logitech para o computador do canal {a.host}, como os botões Easy-Switch (1 · 2 · 3) deles. Não precisa do Logi Options+.</p>}
-      <div className="group pad">
-        {devs === null && <p className="hint">A procurar dispositivos Logitech…</p>}
-        {devs?.map((d) => (
-          <label key={d.name} className="check">
-            <input type="checkbox" checked={a.devices.length === 0 || a.devices.includes(d.name)}
-              onChange={() => a.devices.length === 0 ? onChange({ ...a, devices: devs.filter((x) => x.name !== d.name).map((x) => x.name) }) : toggle(d.name)} />
-            <span>{d.name} <small>· agora no canal {d.current || "?"} de {d.hosts}</small></span>
-          </label>
-        ))}
-        {devs && devs.length === 0 && !err && <p className="hint">Nenhum teclado/rato Logitech com Easy-Switch ligado.</p>}
-        {err && (
-          <>
-            <p className="hint warn">{err.includes("Monitoriza") ? "O macOS precisa da permissão “Monitorização de entrada” para falar com o teclado." : err}</p>
-            <div className="row-btns">
-              <button className="btn" onClick={async () => { await api.inputAccess(true); api.openInputSettings(); }}>Abrir permissões</button>
-              <button className="btn" onClick={load}>Procurar de novo</button>
-            </div>
-          </>
-        )}
-      </div>
-      {devs && devs.length > 0 && a.devices.length > 0 && a.devices.length < devs.length && <p className="hint">Só os marcados mudam.</p>}
+      {!inStep && <p className="hint">Muda o teclado e o rato Logitech de computador, como os botões Easy-Switch (1 · 2 · 3) deles. Escolha o canal de cada um: cada aparelho guarda os seus computadores, por isso o mesmo PC pode ser o canal 2 no teclado e o 3 no rato.</p>}
+      {devs === null && <p className="hint">A procurar dispositivos Logitech…</p>}
+      {names.length > 0 && (
+        <div className="host-table">
+          {names.map((n) => {
+            const d = devs?.find((x) => x.name === n);
+            const ch = chanFor(n);
+            return (
+              <div key={n} className="host-row">
+                <div className="host-name">
+                  <strong>{shortDevice(n)}</strong>
+                  <small>{d ? `agora no canal ${d.current || "?"}` : "não está ligado a este computador agora"}</small>
+                </div>
+                <div className="seg host-seg">
+                  <button className={ch === 0 ? "on" : ""} onClick={() => setChan(n, 0)} title="Não mudar">—</button>
+                  {[1, 2, 3].map((h) => <button key={h} className={ch === h ? "on" : ""} onClick={() => setChan(n, h)}>{h}</button>)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {names.length > 1 && (
+        <div className="row-btns">
+          <span className="hint" style={{ margin: 0 }}>Todos para o canal</span>
+          {[1, 2, 3].map((h) => <button key={h} className="btn small" onClick={() => all(h)}>{h}</button>)}
+        </div>
+      )}
+      {!inStep && names.length > 0 && (
+        <label className="row dest-row">
+          <span>Nome do destino</span>
+          <input className="row-input" value={dest} placeholder="ex.: MacBook, PC trabalho" maxLength={14}
+            onChange={(e) => setDest(e.target.value)} onBlur={() => dest.trim() && onChange(a, dest.trim())} />
+        </label>
+      )}
+      {!inStep && names.length > 0 && <p className="hint">O nome aparece na tecla (pode mudar depois em Aparência). “—” deixa o aparelho onde está.</p>}
+      {devs && names.length === 0 && !err && <p className="hint">Nenhum teclado/rato Logitech com Easy-Switch ligado.</p>}
+      {err && (
+        <>
+          <p className="hint warn">{err.includes("Monitoriza") ? "O macOS precisa da permissão “Monitorização de entrada” para falar com o teclado." : err}</p>
+          <div className="row-btns">
+            <button className="btn" onClick={async () => { await api.inputAccess(true); api.openInputSettings(); }}>Abrir permissões</button>
+            <button className="btn" onClick={load}>Procurar de novo</button>
+          </div>
+        </>
+      )}
+      {devs && devs.length > 0 && <button className="btn plain small" onClick={load}>Atualizar lista</button>}
     </div>
   );
 }
@@ -700,7 +729,7 @@ const SEQUENCE_TEMPLATES: { label: string; steps: Action[] }[] = [
   },
   {
     label: "Trocar teclado e rato para o PC 2",
-    steps: [{ type: "changeHost", host: 2, devices: [] }],
+    steps: [{ type: "changeHost", targets: [{ device: "", host: 2 }] }],
   },
   {
     label: "Commit e push",

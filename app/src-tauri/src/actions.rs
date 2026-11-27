@@ -125,7 +125,9 @@ fn run_at(action: &Action, depth: u8) -> Result<(), String> {
             };
             kb(move |e| e.button(b, d).map_err(|e| e.to_string()))
         }
-        Action::ChangeHost { host, devices } => crate::logi::change_host(*host, devices).map(|_| ()),
+        Action::ChangeHost { targets, host, devices } => {
+            crate::logi::change_host(Action::host_plan(targets, *host, devices)).map(|_| ())
+        }
         Action::TypeText { text, submit } => {
             if !text.is_empty() {
                 let t = text.clone();

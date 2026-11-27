@@ -70,14 +70,40 @@ pub enum Action {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         down: Option<bool>,
     },
-    /// Logitech Easy-Switch: move keyboards/mice to computer channel `host` (1-3).
-    /// `devices`: names to switch; empty = every Logitech device that supports it.
+    /// Logitech Easy-Switch: each listed device goes to its own computer channel (1-3), e.g.
+    /// keyboard -> 2 and mouse -> 3. Old form (0.6.0): `host` for every device in `devices`
+    /// (empty = all).
     ChangeHost {
-        host: u8,
         #[serde(default)]
+        targets: Vec<HostTarget>,
+        #[serde(default, skip_serializing_if = "is_zero")]
+        host: u8,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
         devices: Vec<String>,
     },
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct HostTarget {
+    pub device: String,
+    pub host: u8,
+}
+
+impl Action {
+    /// (device name, channel) pairs of a ChangeHost; "" = every device.
+    pub fn host_plan(targets: &[HostTarget], host: u8, devices: &[String]) -> Vec<(String, u8)> {
+        if !targets.is_empty() {
+            return targets.iter().filter(|t| t.host >= 1).map(|t| (t.device.clone(), t.host)).collect();
+        }
+        if host == 0 {
+            return vec![];
+        }
+        if devices.is_empty() { vec![(String::new(), host)] } else { devices.iter().map(|d| (d.clone(), host)).collect() }
+    }
+}
+
+fn is_zero(v: &u8) -> bool { *v == 0 }
 
 fn default_hold() -> u32 { 40 }
 fn default_gap() -> u32 { 60 }

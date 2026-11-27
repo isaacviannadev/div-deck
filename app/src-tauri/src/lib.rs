@@ -327,7 +327,10 @@ fn pro_glyph(a: &Action, cfg: &Config) -> String {
         Action::Wait { .. } => "none".into(),
         Action::Key { key, .. } | Action::KeyEvent { key, .. } => format!("txt {}", ascii(&key_label(key))),
         Action::Mouse { .. } => "txt Clk".into(),
-        Action::ChangeHost { host, .. } => format!("txt PC{host}"),
+        Action::ChangeHost { targets, host, .. } => {
+            let h = targets.first().map(|t| t.host).unwrap_or(*host);
+            format!("txt PC{h}")
+        }
         // a macro shows the glyph of its first real step
         Action::Sequence { steps, .. } => steps
             .iter()

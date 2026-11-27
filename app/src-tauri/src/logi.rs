@@ -7,7 +7,13 @@
 
 use hidapi::{DeviceInfo, HidApi, HidDevice};
 use serde::Serialize;
-use std::{collections::HashMap, ffi::CString, sync::Mutex, time::Duration};
+use std::{
+    collections::HashMap,
+    ffi::CString,
+    sync::{mpsc, Mutex, OnceLock},
+    thread,
+    time::Duration,
+};
 
 const LOGITECH: u16 = 0x046D;
 const F_NAME: u16 = 0x0005;
@@ -83,8 +89,39 @@ fn read_name(d: &HidDevice, dev: u8) -> Option<String> {
     Some(name)
 }
 
-fn api() -> Result<HidApi, String> {
-    HidApi::new().map_err(|e| format!("HID: {e}"))
+// macOS: hidapi keeps one IOHIDManager scheduled on the run loop of the thread that created it.
+// Using it from another thread (or after that thread ended) crashes the app, so every HID call
+// runs on this one long-lived thread.
+type Job = Box<dyn FnOnce(&mut Option<HidApi>) + Send>;
+static WORKER: OnceLock<Mutex<mpsc::Sender<Job>>> = OnceLock::new();
+
+fn on_hid_thread<R: Send + 'static>(f: impl FnOnce(&HidApi) -> Result<R, String> + Send + 'static) -> Result<R, String> {
+    let tx = WORKER.get_or_init(|| {
+        let (tx, rx) = mpsc::channel::<Job>();
+        thread::Builder::new()
+            .name("divdeck-hid".into())
+            .spawn(move || {
+                let mut api: Option<HidApi> = None;
+                for job in rx {
+                    job(&mut api);
+                }
+            })
+            .expect("spawn hid thread");
+        Mutex::new(tx)
+    });
+    let (rtx, rrx) = mpsc::channel();
+    let job: Job = Box::new(move |api: &mut Option<HidApi>| {
+        let res = (|| {
+            match api {
+                Some(a) => a.refresh_devices().map_err(|e| format!("HID: {e}"))?,
+                None => *api = Some(HidApi::new().map_err(|e| format!("HID: {e}"))?),
+            }
+            f(api.as_ref().unwrap())
+        })();
+        let _ = rtx.send(res);
+    });
+    tx.lock().unwrap().send(job).map_err(|_| "HID thread stopped".to_string())?;
+    rrx.recv_timeout(Duration::from_secs(20)).map_err(|_| "HID timed out".to_string())?
 }
 
 /// Every device that answers CHANGE_HOST, with its name. `want_names`: also read names (slow).
@@ -133,8 +170,11 @@ fn scan(api: &HidApi, want_names: bool) -> (Vec<(Target, HidDevice)>, Vec<String
 
 /// The app's list for the action editor.
 pub fn list() -> Result<Vec<LogiDevice>, String> {
-    let api = api()?;
-    let (found, errors) = scan(&api, true);
+    on_hid_thread(list_on)
+}
+
+fn list_on(api: &HidApi) -> Result<Vec<LogiDevice>, String> {
+    let (found, errors) = scan(api, true);
     let mut out = vec![];
     for (t, d) in &found {
         let info = req(d, t.dev, t.feat, 0, &[]);
@@ -147,18 +187,21 @@ pub fn list() -> Result<Vec<LogiDevice>, String> {
     Ok(out)
 }
 
-/// Move the devices to channel `host` (1-based). Returns how many were switched.
-pub fn change_host(host: u8, only: &[String]) -> Result<usize, String> {
-    if !(1..=3).contains(&host) {
+/// Move devices to Easy-Switch channels (1-based): `plan` = (device name, channel); a name ""
+/// means every device. Returns how many were switched.
+pub fn change_host(plan: Vec<(String, u8)>) -> Result<usize, String> {
+    if plan.is_empty() || plan.iter().any(|(_, h)| !(1..=3).contains(h)) {
         return Err("canal inválido".into());
     }
-    let api = api()?;
-    let (found, errors) = scan(&api, !only.is_empty());
+    on_hid_thread(move |api| change_on(api, &plan))
+}
+
+fn change_on(api: &HidApi, plan: &[(String, u8)]) -> Result<usize, String> {
+    let named = plan.iter().any(|(n, _)| !n.is_empty());
+    let (found, errors) = scan(api, named);
     let mut n = 0;
     for (t, d) in &found {
-        if !only.is_empty() && !only.iter().any(|o| o == &t.name) {
-            continue;
-        }
+        let Some(host) = plan.iter().find(|(name, _)| name.is_empty() || name == &t.name).map(|(_, h)| *h) else { continue };
         // setCurrentHost: the device leaves at once, so there is no reply to wait for
         let mut b = [0u8; 20];
         b[0] = 0x11;
