@@ -2,7 +2,7 @@
 //! slow action never blocks the serial reader.
 
 use crate::config::{Action, MediaKey};
-use enigo::{Direction, Enigo, Key, Keyboard, Settings};
+use enigo::{Button, Direction, Enigo, Key, Keyboard, Mouse, Settings};
 use std::{cell::RefCell, process::Command, sync::{mpsc, OnceLock}, thread, time::Duration};
 
 pub enum Job {
@@ -82,18 +82,50 @@ fn run_at(action: &Action, depth: u8) -> Result<(), String> {
             thread::sleep(Duration::from_millis((*ms).min(10_000) as u64));
             Ok(())
         }
-        Action::Sequence { steps } => {
+        Action::Sequence { steps, exact } => {
             if depth > 2 {
                 return Err("sequence nested too deep".into());
             }
             for (i, step) in steps.iter().enumerate() {
-                if i > 0 && !matches!(step, Action::Wait { .. }) {
+                if i > 0 && !*exact && !matches!(step, Action::Wait { .. }) {
                     thread::sleep(STEP_GAP);
                 }
                 run_at(step, depth + 1)?;
             }
             Ok(())
         }
+        Action::Key { key, hold_ms, repeat, gap_ms } => {
+            let k = parse_key(key).or_else(|| parse_mod(key)).ok_or_else(|| format!("unknown key '{key}'"))?;
+            let n = (*repeat).clamp(1, 50);
+            for i in 0..n {
+                if i > 0 {
+                    thread::sleep(Duration::from_millis((*gap_ms).min(5_000) as u64));
+                }
+                kb(move |e| e.key(k, Direction::Press).map_err(|e| e.to_string()))?;
+                thread::sleep(Duration::from_millis((*hold_ms).clamp(1, 2_000) as u64));
+                kb(move |e| e.key(k, Direction::Release).map_err(|e| e.to_string()))?;
+            }
+            Ok(())
+        }
+        Action::KeyEvent { key, down } => {
+            let k = parse_key(key).or_else(|| parse_mod(key)).ok_or_else(|| format!("unknown key '{key}'"))?;
+            let d = if *down { Direction::Press } else { Direction::Release };
+            kb(move |e| e.key(k, d).map_err(|e| e.to_string()))
+        }
+        Action::Mouse { button, down } => {
+            let b = match button.as_str() {
+                "right" => Button::Right,
+                "middle" => Button::Middle,
+                _ => Button::Left,
+            };
+            let d = match down {
+                None => Direction::Click,
+                Some(true) => Direction::Press,
+                Some(false) => Direction::Release,
+            };
+            kb(move |e| e.button(b, d).map_err(|e| e.to_string()))
+        }
+        Action::ChangeHost { host, devices } => crate::logi::change_host(*host, devices).map(|_| ()),
         Action::TypeText { text, submit } => {
             if !text.is_empty() {
                 let t = text.clone();
@@ -187,14 +219,18 @@ fn parse_mod(m: &str) -> Option<Key> {
         // profiles are written with macOS modifiers; on Windows ⌘ maps to Ctrl
         "cmd" if cfg!(windows) => Key::Control,
         "cmd" => Key::Meta,
-        "ctrl" => Key::Control,
-        "alt" => Key::Alt,
-        "shift" => Key::Shift,
+        "ctrl" | "Control" => Key::Control,
+        "alt" | "Alt" => Key::Alt,
+        "shift" | "Shift" => Key::Shift,
+        "Meta" => Key::Meta,
         _ => return None,
     })
 }
 
-fn parse_key(k: &str) -> Option<Key> {
+pub(crate) fn parse_key(k: &str) -> Option<Key> {
+    if let Some(code) = k.strip_prefix("code:") {
+        return code.parse::<u32>().ok().map(Key::Other); // raw key code (recorded on this OS)
+    }
     let mut chars = k.chars();
     if let (Some(c), None) = (chars.next(), chars.next()) {
         return Some(Key::Unicode(c.to_ascii_lowercase()));

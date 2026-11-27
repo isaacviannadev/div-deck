@@ -116,7 +116,10 @@ static uint8_t brightness = 48, rotation = 1;
 static uint32_t lastPing = 0;
 static bool wasStandalone = true;
 static int8_t touched = -1;
-static bool locked = false;       // swipe down from the top edge: screen locked, logo animation
+static bool locked = false;
+static bool waiting = true;        // no app connected: the grid is hidden behind the "open the app" screen
+static bool hostSeen = false;      // got a HELLO/PING since boot
+static inline bool covered() { return locked || waiting; }       // swipe down from the top edge: screen locked, logo animation
 static uint32_t lockFrame = 0;
 // status bar (like a phone): time, profile, date. The app sends the local time and what to show.
 static uint8_t hdrMask = 0x0F;     // bit0 bar on, bit1 time, bit2 date, bit3 profile
@@ -299,7 +302,7 @@ static bool nowTm(struct tm &t) {
   return true;
 }
 static void drawHeader() {
-  if (!hdrOn() || locked) return;
+  if (!hdrOn() || covered()) return;
   int w = tft.width(), y = HDR_H / 2 + 2;
   tft.startWrite();
   tft.fillRect(0, 0, w, gridTop() - 2, TFT_BLACK);
@@ -323,7 +326,7 @@ static void drawHeader() {
 }
 
 static void drawAll() {
-  if (locked) { for (uint8_t k = 0; k < KEYS; k++) tileDirty[k] = true; return; }
+  if (covered()) { for (uint8_t k = 0; k < KEYS; k++) tileDirty[k] = true; return; }
   tft.startWrite();
   tft.fillScreen(TFT_BLACK);
   for (uint8_t k = 0; k < KEYS; k++) { drawTile(k, k == touched); tileDirty[k] = false; }
@@ -332,7 +335,7 @@ static void drawAll() {
 }
 
 static void drawDirty() {
-  if (locked) return;
+  if (covered()) return;
   tft.startWrite();
   for (uint8_t k = 0; k < KEYS; k++) if (tileDirty[k]) { drawTile(k, k == touched); tileDirty[k] = false; }
   tft.endWrite();
@@ -388,7 +391,14 @@ static void drawLockFrame(bool full) {
     }
     tft.setTextColor(tft.color565(0x60, 0x60, 0x66));
     tft.setFont(&fonts::Font2);
-    tft.drawString("deslize para cima para desbloquear", cx, tft.height() - 18);
+    if (waiting && !locked) {
+      tft.setTextColor(tft.color565(0xd8, 0xd8, 0xdc));
+      tft.drawString("Abra o app DIV Deck no computador", cx, tft.height() - 38);
+      tft.setTextColor(tft.color565(0x60, 0x60, 0x66));
+      tft.drawString("a aguardar ligacao...", cx, tft.height() - 18);
+    } else {
+      tft.drawString("deslize para cima para desbloquear", cx, tft.height() - 18);
+    }
   }
   float t = lockFrame * 0.11f;
   for (int i = 0; i < LOGO_N; i++) {
@@ -414,7 +424,7 @@ static void setLocked(bool on) {
     drawLockFrame(true);
   } else {
     applyBrightness();
-    drawAll();
+    if (waiting) drawLockFrame(true); else drawAll();
   }
 }
 
@@ -428,6 +438,7 @@ static void pollTouch() {
   if (down) tp.x = tft.width() - 1 - tp.x;   // this panel's touch X runs the other way
 
   // gestures
+  if (waiting && !locked) return;           // nothing to press until the app is connected
   if (down && !tracking) { tracking = true; sy = tp.y; edge = !locked && tp.y < 22; }
   if (down && tracking) {
     if (edge && tp.y - sy > 70) { edge = false; setLocked(true); }
@@ -488,10 +499,10 @@ static void handleLine(char *line) {
   };
 
   if (!strcmp(cmd, "PING")) {
-    lastPing = millis();
+    lastPing = millis(); hostSeen = true;
     Serial.println("PONG");
   } else if (!strcmp(cmd, "HELLO")) {
-    lastPing = millis();
+    lastPing = millis(); hostSeen = true;
     hello();
   } else if (!strcmp(cmd, "L")) {
     int k = keyArg(rest);
@@ -555,8 +566,8 @@ static void handleLine(char *line) {
     if (strcmp(stageHash, rest) || stageLen != ICON_BYTES) { stageHash[0] = '\0'; Serial.printf("FAIL %s\n", rest); return; }
     tft.startWrite();
     for (uint8_t k = 0; k < KEYS; k++) if (!strcmp(tiles[k].icon, rest)) {
-      haveFace[k] = true; tileDirty[k] = locked;
-      if (locked) continue;
+      haveFace[k] = true; tileDirty[k] = covered();
+      if (covered()) continue;
       int x = tileX(k), y = tileY(k);
       tft.fillRect(x - 2, y - 2, tileW() + 4, tileH() + 4, TFT_BLACK);
       tft.pushImage(x + (tileW() - FACE_W) / 2, y + (tileH() - FACE_H) / 2, FACE_W, FACE_H, (const lgfx::swap565_t *)stage);
@@ -615,7 +626,7 @@ void setup() {
   applyBrightness();
   splash();
   delay(700);
-  drawAll();
+  drawLockFrame(true);               // "open the app" until the app says HELLO
   neopixelWrite(PIN_RGB, 0, 0, 0);
   hello();
 }
@@ -635,11 +646,17 @@ void loop() {
     }
   }
   static uint32_t lastAnim = 0;
-  if (locked && now - lastAnim >= 33) { lastAnim = now; lockFrame++; drawLockFrame(false); }
-  // small status LED on the SuperMini: green while the app is connected
-  bool standalone = now - lastPing > HOST_TIMEOUT_MS;
+  if (covered() && now - lastAnim >= 33) { lastAnim = now; lockFrame++; drawLockFrame(false); }
+  // app connected or not: the keys only show (and work) while the app answers
+  bool standalone = !hostSeen || now - lastPing > HOST_TIMEOUT_MS;
   if (standalone != wasStandalone) {
     wasStandalone = standalone;
-    neopixelWrite(PIN_RGB, 0, standalone ? 0 : 6, 0);
+    neopixelWrite(PIN_RGB, 0, standalone ? 0 : 6, 0);   // small status LED: green while connected
+    if (touched >= 0) { Serial.printf("U %d\n", touched); touched = -1; }
+    waiting = standalone;
+    if (!locked) {
+      if (waiting) { lockFrame = 0; drawLockFrame(true); }
+      else drawAll();
+    }
   }
 }

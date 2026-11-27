@@ -14,8 +14,15 @@ export type Action =
   | { type: "media"; key: MediaKey }
   | { type: "shell"; command: string }
   | { type: "switchProfile"; profile: string }
-  | { type: "sequence"; steps: Action[] }
-  | { type: "wait"; ms: number };
+  | { type: "sequence"; steps: Action[]; exact?: boolean }
+  | { type: "wait"; ms: number }
+  | { type: "key"; key: string; holdMs: number; repeat: number; gapMs: number }
+  | { type: "keyEvent"; key: string; down: boolean }
+  | { type: "mouse"; button: "left" | "right" | "middle"; down?: boolean }
+  | { type: "changeHost"; host: number; devices: string[] };
+
+export interface LogiDevice { name: string; hosts: number; current: number }
+export type MacroState = { state: "idle" | "armed" | "recording"; steps?: Action[]; error?: string };
 
 export type ActionType = Action["type"];
 
@@ -133,6 +140,14 @@ export const api = {
   appIcon: (icns: string) => call<string | null>("app_icon", { icns }),
   accessibilityStatus: () => call<boolean>("accessibility_status"),
   openAccessibilitySettings: () => call<void>("open_accessibility_settings"),
+  logiDevices: () => call<LogiDevice[]>("logi_devices"),
+  macroArm: () => call<void>("macro_arm"),
+  macroStart: () => call<void>("macro_start"),
+  macroStop: () => call<void>("macro_stop"),
+  macroCancel: () => call<void>("macro_cancel"),
+  inputAccess: (request: boolean) => call<boolean>("input_access", { request }),
+  openInputSettings: () => call<void>("open_input_settings"),
+  onMacro: (cb: (m: MacroState) => void) => on("macro://state", cb),
 
   onDecks: (cb: (d: DeckInfo[]) => void) => on("deck://decks", cb),
   onKey: (cb: (e: { deck: string; key: number; down: boolean }) => void) => on("deck://key", cb),
@@ -252,7 +267,27 @@ const mock = (() => {
         case "app_icon":
           return null;
         case "accessibility_status":
+        case "input_access":
           return true;
+        case "logi_devices":
+          return [{ name: "MX Mechanical", hosts: 3, current: 1 }, { name: "MX Master 4 for Mac", hosts: 3, current: 1 }] satisfies LogiDevice[];
+        case "macro_arm":
+          emit("macro://state", { state: "armed" });
+          return;
+        case "macro_start":
+          emit("macro://state", { state: "recording" });
+          return;
+        case "macro_stop":
+          emit("macro://state", { state: "idle", steps: [
+            { type: "key", key: "code:12", holdMs: 42, repeat: 1, gapMs: 60 }, { type: "wait", ms: 80 },
+            { type: "key", key: "code:13", holdMs: 38, repeat: 1, gapMs: 60 }, { type: "wait", ms: 85 },
+            { type: "key", key: "code:14", holdMs: 40, repeat: 3, gapMs: 78 }, { type: "wait", ms: 90 },
+            { type: "key", key: "code:15", holdMs: 41, repeat: 1, gapMs: 60 },
+          ] });
+          return;
+        case "macro_cancel":
+          emit("macro://state", { state: "idle" });
+          return;
         default:
           return null;
       }

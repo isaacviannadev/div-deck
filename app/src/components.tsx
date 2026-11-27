@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { COLS, isWindows, type Action, type AppInfo, type DeckModel, type KeyConfig, type KeyIcon, type Profile } from "./api";
+import { COLS, api, isWindows, type Action, type AppInfo, type DeckModel, type KeyConfig, type KeyIcon, type LogiDevice, type MacroState, type Profile } from "./api";
 import { EMOJI, FACE_H, FACE_W, brands, drawFace, drawKeyIcon, imageFileToIcon } from "./tileIcons";
 import { confirmDialog, toast } from "./feedback";
 import {
-  ACTION_TYPES, AppIcon, Icon, MEDIA, MODS, STEP_TYPES, actionIcon, actionSummary, defaultAction, formatShortcut, keyFromEvent, useApps,
+  ACTION_TYPES, AppIcon, Icon, MEDIA, MODS, STEP_TYPES, actionIcon, actionSummary, defaultAction, formatShortcut, keyFromEvent, keyLabel, useApps,
 } from "./ui";
 
 // ------------------------------------------------------------------ app picker
@@ -83,6 +83,59 @@ function ShortcutField({ mods, keyName, onChange, compact = false }: { mods: str
       {!compact && <p className="hint">Funciona com o layout do teclado atual. Atalhos que o sistema intercepta dá para montar pelos botões.</p>}
     </div>
   );
+}
+
+// ------------------------------------------------------------------ MX OLED preview
+
+const WD = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SAB"];
+const MO = ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"];
+
+/** What the 0.96" OLED of the MX pod shows (same layout as the firmware), as 1-bit pixels. */
+export function OledPreview({ status, profile, connected }: { status: { show: boolean; time: boolean; date: boolean; profile: boolean }; profile: string; connected: boolean }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
+  const blink = Math.floor(now.getTime() / 600) % 2 === 1;
+  useEffect(() => {
+    const c = ref.current; if (!c) return;
+    const g = c.getContext("2d")!;
+    g.fillStyle = "#000"; g.fillRect(0, 0, 128, 64);
+    if (status.show) {
+      g.fillStyle = "#fff"; g.textBaseline = "alphabetic";
+      const name = profile.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const showP = status.profile && !!name, showT = status.time, showD = status.date;
+      if (!connected || (!showP && !showT && !showD)) {
+        g.font = "bold 18px 'Helvetica Neue', Arial"; g.textAlign = "center";
+        g.fillText("DIV DECK", 64, 28);
+        g.font = "10px Menlo, monospace";
+        g.fillText(!connected ? `> abra o app${blink ? " _" : "  "}` : `> mx${blink ? " _" : "  "}`, 64, 50);
+      } else {
+        let y = 0;
+        if (showP) {
+          g.font = "10px Menlo, monospace"; g.textAlign = "left";
+          g.fillText(`> ${name.slice(0, 19)}`, 2, 10);
+          g.fillRect(0, 13, 128, 1);
+          y = 14;
+        }
+        if (showT) {
+          g.font = "bold 30px 'Helvetica Neue', Arial"; g.textAlign = "center";
+          g.fillText(`${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`, 64, showD ? y + 34 : y + 40);
+        }
+        if (showD) {
+          g.font = "10px Menlo, monospace"; g.textAlign = "center";
+          g.fillText(`${WD[now.getDay()]} ${String(now.getDate()).padStart(2, "0")} ${MO[now.getMonth()]}`, 64, showT ? 62 : y + 30);
+        }
+      }
+      // 1-bit like the real panel
+      const img = g.getImageData(0, 0, 128, 64);
+      for (let i = 0; i < img.data.length; i += 4) {
+        const on = img.data[i] > 110;
+        img.data[i] = on ? 0xe8 : 0; img.data[i + 1] = on ? 0xf4 : 0; img.data[i + 2] = on ? 0xff : 0; img.data[i + 3] = 255;
+      }
+      g.putImageData(img, 0, 0);
+    }
+  }, [status.show, status.time, status.date, status.profile, profile, connected, now.getMinutes(), blink]); // eslint-disable-line react-hooks/exhaustive-deps
+  return <div className="oled-preview"><canvas ref={ref} width={128} height={64} style={{ width: 192, height: 96 }} /></div>;
 }
 
 // ------------------------------------------------------------------ deck
@@ -178,7 +231,9 @@ function actionReady(a: Action): boolean {
     case "openUrl": return a.url.trim().length > 3;
     case "typeText": return a.text.length > 0 || !!a.submit;
     case "shell": return a.command.trim().length > 0;
-    case "media": case "switchProfile": case "wait": return true;
+    case "media": case "switchProfile": case "wait": case "mouse": return true;
+    case "key": case "keyEvent": return !!a.key;
+    case "changeHost": return a.host >= 1 && a.host <= 3;
     case "sequence": return a.steps.length > 0 && a.steps.every(actionReady);
   }
 }
@@ -427,8 +482,182 @@ function ActionFields({ a, profiles, onChange, autoLabel, inStep = false }: {
           ))}
         </div>
       )}
-      {a.type === "sequence" && <SequenceEditor steps={a.steps} profiles={profiles} onChange={(steps) => onChange({ type: "sequence", steps })} />}
+      {a.type === "key" && (
+        <div className="keystep">
+          <KeyCapture value={a.key} onChange={(key) => onChange({ ...a, key })} />
+          <label className="mini">segurar <input className="input num" type="number" min={5} max={2000} value={a.holdMs}
+            onChange={(e) => onChange({ ...a, holdMs: clampInt(e.target.value, 5, 2000) })} /> ms</label>
+          <label className="mini">× <input className="input num" type="number" min={1} max={50} value={a.repeat}
+            onChange={(e) => onChange({ ...a, repeat: clampInt(e.target.value, 1, 50) })} /></label>
+          {a.repeat > 1 && <label className="mini">a cada <input className="input num" type="number" min={0} max={5000} value={a.gapMs}
+            onChange={(e) => onChange({ ...a, gapMs: clampInt(e.target.value, 0, 5000) })} /> ms</label>}
+        </div>
+      )}
+      {a.type === "keyEvent" && (
+        <div className="keystep">
+          <div className="seg small">
+            <button className={a.down ? "on" : ""} onClick={() => onChange({ ...a, down: true })}>Premir</button>
+            <button className={!a.down ? "on" : ""} onClick={() => onChange({ ...a, down: false })}>Soltar</button>
+          </div>
+          <KeyCapture value={a.key} modifiers onChange={(key) => onChange({ ...a, key })} />
+        </div>
+      )}
+      {a.type === "mouse" && (
+        <div className="keystep">
+          <select className="input" value={a.button} onChange={(e) => onChange({ ...a, button: e.target.value as "left" })}>
+            <option value="left">Botão esquerdo</option>
+            <option value="right">Botão direito</option>
+            <option value="middle">Botão do meio</option>
+          </select>
+          <select className="input" value={a.down === undefined ? "click" : a.down ? "down" : "up"}
+            onChange={(e) => onChange({ ...a, down: e.target.value === "click" ? undefined : e.target.value === "down" })}>
+            <option value="click">Clique</option>
+            <option value="down">Premir</option>
+            <option value="up">Soltar</option>
+          </select>
+        </div>
+      )}
+      {a.type === "changeHost" && <ChangeHostFields a={a} inStep={inStep} onChange={onChange} />}
+      {a.type === "sequence" && <SequenceEditor seq={a} profiles={profiles} onChange={(seq) => onChange(seq)} />}
     </>
+  );
+}
+
+const clampInt = (v: string, lo: number, hi: number) => Math.max(lo, Math.min(hi, Math.round(+v || 0)));
+
+/** One key, captured from the keyboard (for game keys: no modifiers, the physical key). */
+function KeyCapture({ value, onChange, modifiers = false }: { value: string; onChange: (k: string) => void; modifiers?: boolean }) {
+  const [rec, setRec] = useState(false);
+  useEffect(() => {
+    if (!rec) return;
+    const h = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const mod: Record<string, string> = { Meta: "Meta", Control: "Control", Alt: "Alt", Shift: "Shift" };
+      if (modifiers && mod[e.key]) { onChange(mod[e.key]); setRec(false); return; }
+      const k = keyFromEvent(e);
+      if (!k) return;
+      onChange(k);
+      setRec(false);
+    };
+    window.addEventListener("keydown", h, true);
+    return () => window.removeEventListener("keydown", h, true);
+  }, [rec, onChange, modifiers]);
+  return (
+    <button className={`shortcut-display keycap-btn ${rec ? "rec" : ""}`} onClick={() => setRec(!rec)}>
+      {rec ? <><Icon name="record" size={12} /> Carregue na tecla…</> : value ? keyLabel(value) : "Escolher tecla"}
+    </button>
+  );
+}
+
+/** Logitech Easy-Switch: which channel, and which devices (none ticked = all). */
+function ChangeHostFields({ a, inStep, onChange }: { a: Extract<Action, { type: "changeHost" }>; inStep: boolean; onChange: (a: Action, label?: string) => void }) {
+  const [devs, setDevs] = useState<LogiDevice[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const load = () => { setErr(null); setDevs(null); api.logiDevices().then(setDevs).catch((e) => { setDevs([]); setErr(String(e)); }); };
+  useEffect(load, []);
+  const toggle = (n: string) => onChange({ ...a, devices: a.devices.includes(n) ? a.devices.filter((x) => x !== n) : [...a.devices, n] });
+  return (
+    <div className="hoststep">
+      <div className="seg">
+        {[1, 2, 3].map((h) => (
+          <button key={h} className={a.host === h ? "on" : ""} onClick={() => onChange({ ...a, host: h }, `PC ${h}`)}>Canal {h}</button>
+        ))}
+      </div>
+      {!inStep && <p className="hint">Muda o teclado e o rato Logitech para o computador do canal {a.host}, como os botões Easy-Switch (1 · 2 · 3) deles. Não precisa do Logi Options+.</p>}
+      <div className="group pad">
+        {devs === null && <p className="hint">A procurar dispositivos Logitech…</p>}
+        {devs?.map((d) => (
+          <label key={d.name} className="check">
+            <input type="checkbox" checked={a.devices.length === 0 || a.devices.includes(d.name)}
+              onChange={() => a.devices.length === 0 ? onChange({ ...a, devices: devs.filter((x) => x.name !== d.name).map((x) => x.name) }) : toggle(d.name)} />
+            <span>{d.name} <small>· agora no canal {d.current || "?"} de {d.hosts}</small></span>
+          </label>
+        ))}
+        {devs && devs.length === 0 && !err && <p className="hint">Nenhum teclado/rato Logitech com Easy-Switch ligado.</p>}
+        {err && (
+          <>
+            <p className="hint warn">{err.includes("Monitoriza") ? "O macOS precisa da permissão “Monitorização de entrada” para falar com o teclado." : err}</p>
+            <div className="row-btns">
+              <button className="btn" onClick={async () => { await api.inputAccess(true); api.openInputSettings(); }}>Abrir permissões</button>
+              <button className="btn" onClick={load}>Procurar de novo</button>
+            </div>
+          </>
+        )}
+      </div>
+      {devs && devs.length > 0 && a.devices.length > 0 && a.devices.length < devs.length && <p className="hint">Só os marcados mudam.</p>}
+    </div>
+  );
+}
+
+/** "● Gravar": arm, then the deck key starts and stops the recording. */
+function MacroRecorder({ onDone }: { onDone: (steps: Action[]) => void }) {
+  const [st, setSt] = useState<MacroState["state"]>("idle");
+  const [msg, setMsg] = useState<string | null>(null);
+  const [needPerm, setNeedPerm] = useState(false);
+  const [secs, setSecs] = useState(0);
+  const done = useRef(onDone);
+  done.current = onDone;
+  useEffect(() => {
+    const un = api.onMacro((m) => {
+      setSt(m.state);
+      if (m.error) {
+        setNeedPerm(m.error === "permissão");
+        setMsg(m.error === "permissão" ? null : m.error);
+      }
+      if (m.state === "idle" && m.steps) {
+        if (m.steps.length) { done.current(m.steps); toast.success(`Macro gravada: ${m.steps.length} passos`); }
+        else setMsg("Nada foi gravado.");
+      }
+    });
+    return () => { un.then((f) => f()); api.macroCancel(); };
+  }, []);
+  useEffect(() => {
+    if (st !== "recording") return;
+    setSecs(0);
+    const t = setInterval(() => setSecs((x) => x + 1), 1000);
+    return () => clearInterval(t);
+  }, [st]);
+  const arm = async () => {
+    setMsg(null);
+    if (!(await api.inputAccess(true))) { setNeedPerm(true); return; }
+    setNeedPerm(false);
+    api.macroArm().catch((e) => { if (String(e).includes("permiss")) setNeedPerm(true); else setMsg(String(e)); });
+  };
+  return (
+    <div className={`recorder ${st}`}>
+      {st === "idle" && (
+        <>
+          <button className="btn rec-btn" onClick={arm}><span className="rec-dot" /> Gravar macro</button>
+          <span className="hint">Grava o que faz no teclado e no rato, com os tempos reais.</span>
+        </>
+      )}
+      {st === "armed" && (
+        <>
+          <p><b>Pronto.</b> Vá para o jogo ou app e carregue <b>numa tecla do deck</b> para começar. Carregue outra vez para terminar.</p>
+          <div className="row-btns">
+            <button className="btn" onClick={() => api.macroStart()}>Começar já</button>
+            <button className="btn ghost" onClick={() => api.macroCancel()}>Cancelar</button>
+          </div>
+        </>
+      )}
+      {st === "recording" && (
+        <>
+          <p><span className="rec-dot live" /> <b>A gravar… {secs}s</b> Carregue numa tecla do deck para terminar.</p>
+          <div className="row-btns">
+            <button className="btn" onClick={() => api.macroStop()}>Parar</button>
+            <button className="btn ghost" onClick={() => api.macroCancel()}>Descartar</button>
+          </div>
+        </>
+      )}
+      {needPerm && (
+        <div className="hint warn">
+          O macOS precisa da permissão <b>Monitorização de entrada</b> para gravar. Ative o DIV Deck lá e tente de novo.
+          <button className="btn small" onClick={() => api.openInputSettings()}>Abrir definições</button>
+        </div>
+      )}
+      {msg && <p className="hint warn">{msg}</p>}
+    </div>
   );
 }
 
@@ -458,6 +687,22 @@ const SEQUENCE_TEMPLATES: { label: string; steps: Action[] }[] = [
     ],
   },
   {
+    label: "Combo de jogo",
+    steps: [
+      { type: "key", key: "q", holdMs: 40, repeat: 1, gapMs: 60 },
+      { type: "key", key: "w", holdMs: 40, repeat: 1, gapMs: 60 },
+      { type: "key", key: "e", holdMs: 40, repeat: 1, gapMs: 60 },
+      { type: "key", key: "r", holdMs: 40, repeat: 1, gapMs: 60 },
+      { type: "wait", ms: 120 },
+      { type: "key", key: "e", holdMs: 40, repeat: 3, gapMs: 70 },
+      { type: "key", key: "r", holdMs: 40, repeat: 1, gapMs: 60 },
+    ],
+  },
+  {
+    label: "Trocar teclado e rato para o PC 2",
+    steps: [{ type: "changeHost", host: 2, devices: [] }],
+  },
+  {
     label: "Commit e push",
     steps: [
       { type: "typeText", text: "git add -A && git commit -m \"wip\" && git push", submit: true },
@@ -465,7 +710,9 @@ const SEQUENCE_TEMPLATES: { label: string; steps: Action[] }[] = [
   },
 ];
 
-function SequenceEditor({ steps, profiles, onChange }: { steps: Action[]; profiles: Profile[]; onChange: (steps: Action[]) => void }) {
+function SequenceEditor({ seq, profiles, onChange: setSeq }: { seq: Extract<Action, { type: "sequence" }>; profiles: Profile[]; onChange: (seq: Extract<Action, { type: "sequence" }>) => void }) {
+  const steps = seq.steps;
+  const onChange = (steps: Action[]) => setSeq({ ...seq, steps });
   const set = (i: number, a: Action) => onChange(steps.map((s, j) => (j === i ? a : s)));
   const move = (i: number, d: number) => {
     const j = i + d;
@@ -474,11 +721,12 @@ function SequenceEditor({ steps, profiles, onChange }: { steps: Action[]; profil
   };
   return (
     <div className="seq">
+      <MacroRecorder onDone={(rec) => setSeq({ type: "sequence", steps: rec, exact: true })} />
       {steps.length === 0 && (
         <div className="seq-empty">
-          <p className="hint">Monte uma sequência de passos: atalhos, textos, pausas, abrir apps… Ou comece por um modelo:</p>
+          <p className="hint">Monte uma sequência de passos: atalhos, teclas de jogo, textos, pausas, abrir apps… Ou comece por um modelo:</p>
           <div className="seq-templates">
-            {SEQUENCE_TEMPLATES.map((t) => <button key={t.label} className="chip" onClick={() => onChange(structuredClone(t.steps))}>{t.label}</button>)}
+            {SEQUENCE_TEMPLATES.map((t) => <button key={t.label} className="chip" onClick={() => setSeq({ type: "sequence", steps: structuredClone(t.steps), exact: t.label === "Combo de jogo" })}>{t.label}</button>)}
           </div>
         </div>
       )}
@@ -510,7 +758,13 @@ function SequenceEditor({ steps, profiles, onChange }: { steps: Action[]; profil
           {STEP_TYPES.slice(4).map((t) => <option key={t.type} value={t.type}>{t.label}</option>)}
         </select>
       </div>
-      <p className="hint">Os passos correm por ordem, com uma pequena pausa entre eles. Use “Esperar” quando um app demora a abrir.</p>
+      {steps.length > 0 && (
+        <label className="check">
+          <input type="checkbox" checked={!!seq.exact} onChange={(e) => setSeq({ ...seq, exact: e.target.checked || undefined })} />
+          <span>Ritmo exato <small>(sem a pausa automática de 60 ms entre passos: para jogos e macros gravadas)</small></span>
+        </label>
+      )}
+      <p className="hint">Os passos correm por ordem{seq.exact ? ", só com as pausas que estão na lista" : ", com uma pequena pausa entre eles"}. Use “Esperar” quando um app demora a abrir. Em jogos, use “Tecla (jogos)”: carrega e solta como uma pessoa.</p>
     </div>
   );
 }

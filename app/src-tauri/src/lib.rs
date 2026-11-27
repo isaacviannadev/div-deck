@@ -1,6 +1,8 @@
 mod actions;
 mod apps;
 mod config;
+mod logi;
+mod recorder;
 mod presets;
 mod presets_v1;
 mod serial;
@@ -163,6 +165,26 @@ pub(crate) fn on_deck_disconnected(app: &AppHandle, id: &str) {
 /// Called by a deck's session thread for every key (or touch tile) event.
 pub(crate) fn on_key(app: &AppHandle, deck: &str, key: u8, down: bool) {
     let _ = app.emit("deck://key", KeyEvent { deck, key, down });
+    // macro recorder: a deck key starts it, the next one stops it (the key's action doesn't run)
+    match recorder::state() {
+        recorder::State::Idle => {}
+        _ if !down => return,
+        recorder::State::Armed => {
+            match recorder::start() {
+                Ok(()) => emit_macro(app, "recording", None, None),
+                Err(e) => {
+                    recorder::cancel();
+                    emit_macro(app, "idle", None, Some(e));
+                }
+            }
+            return;
+        }
+        recorder::State::Recording => {
+            let steps = recorder::finish();
+            emit_macro(app, "idle", steps, None);
+            return;
+        }
+    }
     if !down {
         return;
     }
@@ -178,7 +200,7 @@ pub(crate) fn on_key(app: &AppHandle, deck: &str, key: u8, down: bool) {
         Some(a) => {
             // a "switch profile" step inside a sequence takes effect on this deck too
             let switch = match &a {
-                Action::Sequence { steps } => steps.iter().rev().find_map(|s| match s {
+                Action::Sequence { steps, .. } => steps.iter().rev().find_map(|s| match s {
                     Action::SwitchProfile { profile } => Some(profile.clone()),
                     _ => None,
                 }),
@@ -189,6 +211,42 @@ pub(crate) fn on_key(app: &AppHandle, deck: &str, key: u8, down: bool) {
                 set_active(app, deck, &p, true);
             }
         }
+    }
+}
+
+/// Small diagnostic log: ~/Library/Logs/DIV Deck/divdeck.log (macOS), %APPDATA%\\DIV Deck\\divdeck.log.
+pub(crate) fn log(msg: impl AsRef<str>) {
+    use std::io::Write as _;
+    let dir = if cfg!(windows) {
+        std::env::var_os("APPDATA").map(|d| std::path::PathBuf::from(d).join("DIV Deck"))
+    } else {
+        std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join("Library/Logs/DIV Deck"))
+    };
+    let Some(dir) = dir else { return };
+    let _ = std::fs::create_dir_all(&dir);
+    let path = dir.join("divdeck.log");
+    if std::fs::metadata(&path).is_ok_and(|m| m.len() > 512 * 1024) {
+        let _ = std::fs::rename(&path, dir.join("divdeck.old.log"));
+    }
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        let _ = writeln!(f, "{} {}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f"), msg.as_ref());
+    }
+}
+
+/// "code:12" (recorded macOS key code) -> "Q"; plain names as they are.
+pub(crate) fn key_label(key: &str) -> String {
+    const MAC: [(u16, &str); 50] = [
+        (0, "A"), (1, "S"), (2, "D"), (3, "F"), (4, "H"), (5, "G"), (6, "Z"), (7, "X"), (8, "C"), (9, "V"), (11, "B"),
+        (12, "Q"), (13, "W"), (14, "E"), (15, "R"), (16, "Y"), (17, "T"), (18, "1"), (19, "2"), (20, "3"), (21, "4"),
+        (22, "6"), (23, "5"), (25, "9"), (26, "7"), (28, "8"), (29, "0"), (31, "O"), (32, "U"), (34, "I"), (35, "P"),
+        (36, "Enter"), (37, "L"), (38, "J"), (40, "K"), (45, "N"), (46, "M"), (48, "Tab"), (49, "Space"), (51, "Del"),
+        (53, "Esc"), (122, "F1"), (120, "F2"), (99, "F3"), (118, "F4"), (96, "F5"), (123, "Left"), (124, "Right"),
+        (125, "Down"), (126, "Up"),
+    ];
+    match key.strip_prefix("code:").and_then(|c| c.parse::<u16>().ok()) {
+        Some(c) => MAC.iter().find(|(k, _)| *k == c).map(|(_, n)| n.to_string()).unwrap_or_else(|| format!("#{c}")),
+        None if key.chars().count() == 1 => key.to_uppercase(),
+        None => key.to_string(),
     }
 }
 
@@ -267,8 +325,11 @@ fn pro_glyph(a: &Action, cfg: &Config) -> String {
             format!("txt {}", ascii(&mono(&cfg.profile(profile).map(|p| p.name.clone()).unwrap_or_default())))
         }
         Action::Wait { .. } => "none".into(),
+        Action::Key { key, .. } | Action::KeyEvent { key, .. } => format!("txt {}", ascii(&key_label(key))),
+        Action::Mouse { .. } => "txt Clk".into(),
+        Action::ChangeHost { host, .. } => format!("txt PC{host}"),
         // a macro shows the glyph of its first real step
-        Action::Sequence { steps } => steps
+        Action::Sequence { steps, .. } => steps
             .iter()
             .find(|s| !matches!(s, Action::Wait { .. } | Action::None))
             .map(|s| pro_glyph(s, cfg))
@@ -500,6 +561,70 @@ fn set_profile(app: AppHandle, st: tauri::State<AppState>, deck: Option<String>,
             }
         }
     }
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MacroEvent {
+    state: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    steps: Option<Vec<Action>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
+}
+
+fn emit_macro(app: &AppHandle, state: &'static str, steps: Option<Vec<Action>>, error: Option<String>) {
+    let _ = app.emit("macro://state", MacroEvent { state, steps, error });
+}
+
+/// Arm the recorder: the next deck key (or macro_start) begins recording.
+#[tauri::command]
+fn macro_arm(app: AppHandle) -> Result<(), String> {
+    recorder::arm()?;
+    emit_macro(&app, "armed", None, None);
+    Ok(())
+}
+
+#[tauri::command]
+fn macro_start(app: AppHandle) -> Result<(), String> {
+    if let Err(e) = recorder::start() {
+        recorder::cancel();
+        emit_macro(&app, "idle", None, Some(e.clone()));
+        return Err(e);
+    }
+    emit_macro(&app, "recording", None, None);
+    Ok(())
+}
+
+#[tauri::command]
+fn macro_stop(app: AppHandle) {
+    let steps = recorder::finish();
+    emit_macro(&app, "idle", steps, None);
+}
+
+#[tauri::command]
+fn macro_cancel(app: AppHandle) {
+    recorder::cancel();
+    emit_macro(&app, "idle", None, None);
+}
+
+/// "Input Monitoring" (macOS): needed to record macros and to reach Logitech keyboards.
+#[tauri::command]
+fn input_access(request: bool) -> bool {
+    recorder::has_access(request)
+}
+
+#[tauri::command]
+fn open_input_settings() {
+    #[cfg(target_os = "macos")]
+    let _ = std::process::Command::new("open")
+        .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")
+        .spawn();
+}
+
+#[tauri::command]
+async fn logi_devices() -> Result<Vec<logi::LogiDevice>, String> {
+    tauri::async_runtime::spawn_blocking(logi::list).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -835,6 +960,13 @@ pub fn run() {
             accessibility_status,
             request_accessibility,
             open_accessibility_settings,
+            macro_arm,
+            macro_start,
+            macro_stop,
+            macro_cancel,
+            input_access,
+            open_input_settings,
+            logi_devices,
         ])
         .build(tauri::generate_context!())
         .expect("error while building DIV Deck");

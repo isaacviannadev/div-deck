@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, checkForUpdate, isTauri, isWindows, lockedApps, presetOwner, type UpdateInfo, type AppStateDto, type Config, type DeckInfo, type KeyConfig, type Profile, modelName } from "./api";
-import { AppPicker, Deck, KeyEditor } from "./components";
+import { AppPicker, Deck, KeyEditor, OledPreview } from "./components";
 import { AppIcon, Icon, Toggle, appName, useApps } from "./ui";
 import { syncTileIcons } from "./tileIcons";
 import { ConfirmHost, Toaster, confirmDialog, dismiss, toast } from "./feedback";
 import "./App.css";
 import logoSvg from "./divdeck-logo.svg?raw";
+
+/** "1.1.0" < "1.2.0" */
+const fwOlder = (v: string, than: string) => {
+  const a = v.split(".").map(Number), b = than.split(".").map(Number);
+  for (let i = 0; i < 3; i++) if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) < (b[i] || 0);
+  return false;
+};
 
 const uid = () => Math.random().toString(36).slice(2, 9);
 
@@ -358,6 +365,15 @@ function Main({ initial }: { initial: AppStateDto }) {
                   </label>
                 ))}
               </div>
+            )}
+            {deck.model === "mx" && (
+              <>
+                <OledPreview status={deck.status ?? { show: true, time: true, date: true, profile: true }}
+                  profile={config.profiles.find((p) => p.id === deck.active)?.name ?? ""} connected={deck.connected} />
+                {deck.connected && deck.firmware && fwOlder(deck.firmware, "1.2.0") && (
+                  <small className="deck-meta">A tela OLED precisa do firmware 1.2 ou mais recente.</small>
+                )}
+              </>
             )}
             {!deck.connected && decks.length > 1 && (
               <button className="btn plain small danger" onClick={async () => {

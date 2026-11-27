@@ -24,8 +24,9 @@
 // Optional 0.96" SSD1306 OLED (I2C 0x3C/0x3D on OLED_SDA/OLED_SCL, v1.4 pod). It is mounted upside
 // down in the pod, so the image is rotated 180 deg. Without the OLED everything else works as before.
 //
-// Without a host (no PING for 5 s) the deck runs standalone: keys breathe softly in their
-// saved colours and light up on press, so you can test the hardware with no app at all.
+// Without a host (no PING for 5 s) the keys show a cyan "waiting" wave instead of the profile
+// (and the OLED asks to open the app); presses still light up, so the hardware can be tested
+// with no app at all.
 
 #include <Arduino.h>
 #include <Adafruit_NeoPixel.h>
@@ -51,6 +52,9 @@ static bool keyRaw[KEYS];            // last raw reading
 static uint32_t keyChangedAt[KEYS];  // when the raw reading last changed
 
 static uint32_t lastPing = 0;
+static bool hostSeen = false;        // got a HELLO/PING since boot
+// No app: the keys show a "waiting" wave instead of the profile, the OLED asks to open the app.
+static bool noHost() { return !hostSeen || millis() - lastPing > HOST_TIMEOUT_MS; }
 static bool ledsDirty = true;
 static char rxBuf[96];
 
@@ -131,15 +135,16 @@ static uint32_t scale(uint32_t c, uint8_t f) {
 }
 
 static void renderLeds() {
-  bool standalone = millis() - lastPing > HOST_TIMEOUT_MS;
-  // standalone: gentle breathing between 35% and 100% of the idle colour
-  uint8_t breath = 255;
-  if (standalone) {
-    float t = (millis() % 4000) / 4000.0f;
-    breath = 90 + (uint8_t)(165 * (0.5f - 0.5f * cosf(t * 2 * PI)));
-  }
+  // no app: a slow diagonal wave in the DIV cyan, the profile colours come back with the app
+  bool waiting = noHost();
+  float t = (millis() % 3600) / 3600.0f * 2 * PI;
   for (uint8_t k = 0; k < KEYS; k++) {
-    uint32_t c = keyState[k] ? pressColor : scale(idleColor[k], breath);
+    uint32_t c;
+    if (keyState[k]) c = pressColor;
+    else if (waiting) {
+      float w = 0.5f + 0.5f * sinf(t - (k / COLS + k % COLS) * 0.8f);
+      c = scale(0x38D6FF, 25 + (uint8_t)(150 * w));
+    } else c = idleColor[k];
     // gamma correction: LEDs respond linearly, eyes don't. Without it mid tones and pastels
     // look washed out and the colours don't match what the app shows on screen.
     strip.setPixelColor(ledForKey(k), strip.gamma32(c));
@@ -187,12 +192,14 @@ static void drawOled() {
   bool showProfile = (oledMask & 8) && profileName[0];
   bool showTime = (oledMask & 2) && haveTime;
   bool showDate = (oledMask & 4) && haveTime;
-  if (!showTime && !showDate && !showProfile) {
-    // idle splash: brand + a blinking prompt
+  if (noHost() || (!showTime && !showDate && !showProfile)) {
+    // no app (or nothing chosen): brand + a blinking prompt
     oled.setFont(u8g2_font_logisoso16_tr);
-    oled.drawStr(18 + dx, 30 + dy, "DIV DECK");
+    oled.drawStr(18 + dx, 28 + dy, "DIV DECK");
     oled.setFont(u8g2_font_6x12_tr);
-    oled.drawStr(40 + dx, 50 + dy, (millis() / 1000) % 2 ? "> mx _" : "> mx");
+    bool blink = (millis() / 600) % 2;
+    if (noHost()) oled.drawStr(16 + dx, 50 + dy, blink ? "> abra o app _" : "> abra o app");
+    else oled.drawStr(40 + dx, 50 + dy, blink ? "> mx _" : "> mx");
     oled.sendBuffer();
     return;
   }
@@ -247,10 +254,10 @@ static void handleLine(char *line) {
   uint32_t col;
 
   if (!strcmp(cmd, "PING")) {
-    lastPing = millis();
+    lastPing = millis(); hostSeen = true;
     Serial.println("PONG");
   } else if (!strcmp(cmd, "HELLO")) {
-    lastPing = millis();
+    lastPing = millis(); hostSeen = true;
     hello();
   } else if (!strcmp(cmd, "L") && a && b && parseHex(b, col)) {
     int k = atoi(a);
@@ -320,8 +327,10 @@ void loop() {
   uint32_t now = millis();
   pollSerial();
   if (now - lastScan >= 1) { lastScan = now; scanMatrix(); }
-  bool standalone = now - lastPing > HOST_TIMEOUT_MS;
-  if (ledsDirty || (standalone && now - lastFrame >= 20)) {
+  static bool wasWaiting = true;
+  bool waiting = noHost();
+  if (waiting != wasWaiting) { wasWaiting = waiting; ledsDirty = true; }
+  if (ledsDirty || (waiting && now - lastFrame >= 20)) {
     lastFrame = now; ledsDirty = false;
     renderLeds();
   }
@@ -331,7 +340,10 @@ void loop() {
   if (oledOk && now - lastOled >= 250) {
     lastOled = now;
     struct tm t;
-    int m = nowTm(t) ? t.tm_min : (int)((now / 1000) % 2);
+    static bool oledWaiting = true;
+    bool w = noHost();
+    if (w != oledWaiting) { oledWaiting = w; oledDirty = true; }
+    int m = (!w && nowTm(t)) ? t.tm_min : 100 + (int)((now / 600) % 2);
     if (m != lastMin) { lastMin = m; oledDirty = true; }
     if (oledDirty) drawOled();
   }

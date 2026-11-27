@@ -147,9 +147,9 @@ fn parse_hello(rest: &str, port: &str) -> LinkInfo {
     LinkInfo { id, model, port: port.to_string(), firmware }
 }
 
-/// Open a port and wait for the deck's HELLO.
-fn probe(name: &str, native: bool) -> Option<(Box<dyn SerialPort>, LinkInfo, LineReader)> {
-    let mut port = serialport::new(name, 115_200).timeout(Duration::from_millis(50)).open().ok()?;
+/// Open a port and wait for the deck's HELLO. Err carries the reason (for the log).
+fn probe(name: &str, native: bool) -> Result<(Box<dyn SerialPort>, LinkInfo, LineReader), String> {
+    let mut port = serialport::new(name, 115_200).timeout(Duration::from_millis(50)).open().map_err(|e| format!("open: {e}"))?;
     if !native {
         // Release the DevKit's auto-reset lines (DTR/RTS). This may reboot the ESP32 once,
         // so allow time for its boot + LED self-test before giving up.
@@ -157,30 +157,52 @@ fn probe(name: &str, native: bool) -> Option<(Box<dyn SerialPort>, LinkInfo, Lin
         let _ = port.write_data_terminal_ready(false);
         let _ = port.write_request_to_send(false);
     }
+    let _ = port.clear(serialport::ClearBuffer::All);
     let mut reader = LineReader::default();
-    let deadline = Instant::now() + Duration::from_millis(3500);
+    // a deck that is still booting (Pro: splash + faces from flash) needs a few seconds
+    let deadline = Instant::now() + Duration::from_millis(if native { 5000 } else { 3500 });
     let mut last_hello = Instant::now() - Duration::from_secs(1);
+    let mut seen: Vec<String> = vec![];
     while Instant::now() < deadline {
         if last_hello.elapsed() > Duration::from_millis(600) {
-            port.write_all(b"HELLO\n").ok()?;
+            port.write_all(b"HELLO\n").map_err(|e| format!("write: {e}"))?;
             last_hello = Instant::now();
         }
-        for line in reader.poll(port.as_mut()).ok()? {
+        for line in reader.poll(port.as_mut()).map_err(|e| format!("read: {e}"))? {
             if let Some(rest) = line.strip_prefix("HELLO DIVDECK") {
-                return Some((port, parse_hello(rest, name), reader));
+                return Ok((port, parse_hello(rest, name), reader));
+            }
+            if seen.len() < 3 {
+                seen.push(line.chars().take(40).collect());
             }
         }
     }
-    None
+    Err(if seen.is_empty() { "no answer".into() } else { format!("no HELLO, got {seen:?}") })
 }
 
 pub fn spawn(app: AppHandle, decks: Arc<Decks>) {
     thread::Builder::new()
         .name("divdeck-scan".into())
-        .spawn(move || loop {
+        .spawn(move || {
+          // last failure per port, so the log gets one line per change instead of one every 1.5 s
+          let mut failures: HashMap<String, String> = HashMap::new();
+          loop {
             let busy = decks.busy_ports();
-            for (name, native) in candidates().into_iter().filter(|(n, _)| !busy.contains(n)) {
-                let Some((port, info, reader)) = probe(&name, native) else { continue };
+            let cands = candidates();
+            failures.retain(|p, _| cands.iter().any(|(n, _)| n == p));
+            for (name, native) in cands.into_iter().filter(|(n, _)| !busy.contains(n)) {
+                let (port, info, reader) = match probe(&name, native) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        if failures.get(&name) != Some(&e) {
+                            crate::log(format!("probe {name}: {e}"));
+                            failures.insert(name, e);
+                        }
+                        continue;
+                    }
+                };
+                failures.remove(&name);
+                crate::log(format!("connected {} ({} fw {}) on {}", info.id, info.model, info.firmware, info.port));
                 if decks.links.lock().unwrap().contains_key(&info.id) {
                     continue; // same deck seen on two ports (shouldn't happen)
                 }
@@ -190,6 +212,7 @@ pub fn spawn(app: AppHandle, decks: Arc<Decks>) {
                     .spawn(move || session(&app, &decks, port, info, reader));
             }
             thread::sleep(Duration::from_millis(1500));
+          }
         })
         .expect("spawn serial thread");
 }
@@ -201,12 +224,15 @@ fn session(app: &AppHandle, decks: &Decks, mut port: Box<dyn SerialPort>, info: 
     crate::on_deck_connected(app, &info);
 
     let mut last_ping = Instant::now();
+    let mut last_rx = Instant::now();
+    let why: String;
     let mut faces: std::collections::VecDeque<String> = Default::default();
     let mut busy: Option<(String, Instant)> = None;
     'session: loop {
         let mut wrote = false;
         while let Ok(line) = rx.try_recv() {
-            if port.write_all(format!("{line}\n").as_bytes()).is_err() {
+            if let Err(e) = port.write_all(format!("{line}\n").as_bytes()) {
+                why = format!("write: {e}");
                 break 'session;
             }
             wrote = true;
@@ -219,7 +245,8 @@ fn session(app: &AppHandle, decks: &Decks, mut port: Box<dyn SerialPort>, info: 
             while let Some(h) = faces.pop_front() {
                 let Some(lines) = crate::face_lines(app, &h) else { continue };
                 for l in lines {
-                    if port.write_all(format!("{l}\n").as_bytes()).is_err() {
+                    if let Err(e) = port.write_all(format!("{l}\n").as_bytes()) {
+                        why = format!("write: {e}");
                         break 'session;
                     }
                 }
@@ -232,13 +259,23 @@ fn session(app: &AppHandle, decks: &Decks, mut port: Box<dyn SerialPort>, info: 
             let _ = port.flush();
         }
         if last_ping.elapsed() >= Duration::from_secs(2) {
-            if port.write_all(b"PING\n").is_err() {
+            if let Err(e) = port.write_all(b"PING\n") {
+                why = format!("write: {e}");
                 break;
             }
             last_ping = Instant::now();
         }
+        // the deck answers every PING: a port that stays silent belongs to a deck that was reset
+        // or unplugged without the OS telling us (then the scanner finds it again)
+        if last_rx.elapsed() > Duration::from_secs(7) {
+            why = "silent for 7 s".into();
+            break;
+        }
         match reader.poll(port.as_mut()) {
             Ok(lines) => {
+                if !lines.is_empty() {
+                    last_rx = Instant::now();
+                }
                 for line in lines {
                     // NEED: on screen now -> front of the queue; WANT: background prefetch -> back
                     let need = line.strip_prefix("NEED ");
@@ -269,9 +306,13 @@ fn session(app: &AppHandle, decks: &Decks, mut port: Box<dyn SerialPort>, info: 
                     }
                 }
             }
-            Err(_) => break, // unplugged
+            Err(e) => {
+                why = format!("read: {e}"); // unplugged
+                break;
+            }
         }
     }
+    crate::log(format!("disconnected {id}: {why}"));
     decks.links.lock().unwrap().remove(&id);
     crate::on_deck_disconnected(app, &id);
 }

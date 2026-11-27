@@ -41,11 +41,47 @@ pub enum Action {
     /// Switch the deck to another profile.
     SwitchProfile { profile: String },
     /// Several actions one after the other (a macro): e.g. open Slack, wait, ⌘K, type a name,
-    /// Return, type a message, Return.
-    Sequence { steps: Vec<Action> },
+    /// Return, type a message, Return. `exact`: no automatic pause between steps (recorded
+    /// macros and game combos keep their own timing through Wait steps).
+    Sequence {
+        steps: Vec<Action>,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        exact: bool,
+    },
     /// Pause inside a sequence, in milliseconds (capped at 10 s).
     Wait { ms: u32 },
+    /// One key pressed like a person does it (held `hold_ms`), `repeat` times with `gap_ms`
+    /// between: what games need (a 0 ms click is often missed). `key` is a key name as in
+    /// Shortcut, or "code:<n>" for a raw macOS key code (recorded macros).
+    Key {
+        key: String,
+        #[serde(default = "default_hold")]
+        hold_ms: u32,
+        #[serde(default = "one")]
+        repeat: u32,
+        #[serde(default = "default_gap")]
+        gap_ms: u32,
+    },
+    /// Press or release a single key (recorded chords such as shift held while clicking).
+    KeyEvent { key: String, down: bool },
+    /// Mouse button at the current pointer position: click (`down` absent) or press/release.
+    Mouse {
+        button: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        down: Option<bool>,
+    },
+    /// Logitech Easy-Switch: move keyboards/mice to computer channel `host` (1-3).
+    /// `devices`: names to switch; empty = every Logitech device that supports it.
+    ChangeHost {
+        host: u8,
+        #[serde(default)]
+        devices: Vec<String>,
+    },
 }
+
+fn default_hold() -> u32 { 40 }
+fn default_gap() -> u32 { 60 }
+fn one() -> u32 { 1 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]

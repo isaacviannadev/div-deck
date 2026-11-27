@@ -42,6 +42,9 @@ const P: Record<string, ReactNode> = {
   down: <path d="M7 10l5 5 5-5" />,
   rotate: <><path d="M20 12a8 8 0 1 1-2.3-5.6" /><path d="M20 4v4h-4" /></>,
   pin: <><path d="M9 4h6l-1 6 3 3H7l3-3z" /><path d="M12 13v7" /></>,
+  key: <><rect x="5" y="5" width="14" height="14" rx="3" /><path d="M9.5 15.5V9l5 6.5V9" /></>,
+  mouse: <><rect x="7" y="3.5" width="10" height="17" rx="5" /><path d="M12 3.5V9" /></>,
+  swap: <><path d="M4 8h13l-3.5-3.5M20 16H7l3.5 3.5" /></>,
 };
 export type IconName = keyof typeof P;
 
@@ -64,14 +67,19 @@ export const ACTION_TYPES: { type: ActionType; label: string; icon: IconName }[]
   { type: "shell", label: "Comando", icon: "terminal" },
   { type: "switchProfile", label: "Perfil", icon: "layers" },
   { type: "sequence", label: "Sequência", icon: "steps" },
+  { type: "changeHost", label: "Trocar PC", icon: "swap" },
   { type: "none", label: "Nenhuma", icon: "dot" },
 ];
 
 /** What a step inside a sequence can be (no nested sequences). */
 export const STEP_TYPES: { type: ActionType; label: string; icon: IconName }[] = [
   { type: "shortcut", label: "Atalho", icon: "command" },
+  { type: "key", label: "Tecla (jogos)", icon: "key" },
   { type: "typeText", label: "Texto", icon: "type" },
   { type: "wait", label: "Esperar", icon: "clock" },
+  { type: "mouse", label: "Clique", icon: "mouse" },
+  { type: "keyEvent", label: "Premir/soltar", icon: "key" },
+  { type: "changeHost", label: "Trocar PC", icon: "swap" },
   { type: "openApp", label: "Abrir app", icon: "app" },
   { type: "openUrl", label: "Link", icon: "link" },
   { type: "media", label: "Mídia", icon: "play" },
@@ -100,8 +108,30 @@ export function defaultAction(type: ActionType, profiles: Profile[]): Action {
     case "switchProfile": return { type, profile: profiles[0]?.id ?? "" };
     case "sequence": return { type, steps: [] };
     case "wait": return { type, ms: 500 };
+    case "key": return { type, key: "", holdMs: 40, repeat: 1, gapMs: 60 };
+    case "keyEvent": return { type, key: "", down: true };
+    case "mouse": return { type, button: "left" };
+    case "changeHost": return { type, host: 2, devices: [] };
   }
 }
+
+/** Recorded macOS key codes ("code:12") and plain names -> what people read ("Q"). */
+const MAC_CODES: Record<number, string> = {
+  0: "A", 1: "S", 2: "D", 3: "F", 4: "H", 5: "G", 6: "Z", 7: "X", 8: "C", 9: "V", 11: "B", 12: "Q", 13: "W", 14: "E", 15: "R",
+  16: "Y", 17: "T", 18: "1", 19: "2", 20: "3", 21: "4", 22: "6", 23: "5", 24: "=", 25: "9", 26: "7", 27: "-", 28: "8", 29: "0",
+  30: "]", 31: "O", 32: "U", 33: "[", 34: "I", 35: "P", 36: "↩", 37: "L", 38: "J", 39: "'", 40: "K", 41: ";", 42: "\\", 43: ",",
+  44: "/", 45: "N", 46: "M", 47: ".", 48: "⇥", 49: "Espaço", 50: "`", 51: "⌫", 53: "esc", 117: "⌦",
+  122: "F1", 120: "F2", 99: "F3", 118: "F4", 96: "F5", 97: "F6", 98: "F7", 100: "F8", 101: "F9", 109: "F10", 103: "F11", 111: "F12",
+  123: "←", 124: "→", 125: "↓", 126: "↑", 115: "↖", 119: "↘", 116: "⇞", 121: "⇟",
+};
+export function keyLabel(key: string): string {
+  const m = /^code:(\d+)$/.exec(key);
+  if (m) return MAC_CODES[+m[1]] ?? `#${m[1]}`;
+  const mods: Record<string, string> = { Meta: isWindows ? "Win" : "⌘", Shift: "⇧", Alt: isWindows ? "Alt" : "⌥", Control: isWindows ? "Ctrl" : "⌃" };
+  if (mods[key]) return mods[key];
+  return KEY_GLYPH[key] ?? (key.length === 1 ? key.toUpperCase() : key);
+}
+const MOUSE_LABEL = { left: "esquerdo", right: "direito", middle: "do meio" } as const;
 
 const MOD_ORDER = ["ctrl", "alt", "shift", "cmd"];
 const MOD_GLYPH: Record<string, string> = { ctrl: "⌃", alt: "⌥", shift: "⇧", cmd: "⌘" };
@@ -156,6 +186,10 @@ export function actionSummary(a: Action, profiles: Profile[]): string {
     case "shell": return a.command || "Comando vazio";
     case "switchProfile": return `→ ${profiles.find((p) => p.id === a.profile)?.name ?? "?"}`;
     case "wait": return `Esperar ${(a.ms / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} s`;
+    case "key": return a.key ? `${keyLabel(a.key)}${a.repeat > 1 ? ` ×${a.repeat}` : ""}` : "Escolha a tecla";
+    case "keyEvent": return a.key ? `${a.down ? "Premir" : "Soltar"} ${keyLabel(a.key)}` : "Escolha a tecla";
+    case "mouse": return `${a.down === undefined ? "Clique" : a.down ? "Premir botão" : "Soltar botão"} ${MOUSE_LABEL[a.button]}`;
+    case "changeHost": return `Teclado e rato → PC ${a.host}`;
     case "sequence": return a.steps.length ? `${a.steps.length} passo${a.steps.length > 1 ? "s" : ""}: ${a.steps.filter((x) => x.type !== "wait").map((x) => actionSummary(x, profiles)).slice(0, 2).join(", ")}` : "Sequência vazia";
   }
 }

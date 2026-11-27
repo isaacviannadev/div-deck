@@ -1,6 +1,6 @@
 [package]
 name = "divdeck"
-version = "0.5.2"
+version = "0.6.0"
 description = "DIV Deck companion app"
 authors = ["Isaac Vianna"]
 edition = "2024"
@@ -18,7 +18,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-chrono = { version = "0.4", default-features = false, features = ["clock"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 tauri = { version = "2", features = ["tray-icon", "image-png", "macos-private-api"] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
@@ -31,6 +31,7 @@ tauri-plugin-autostart = "2.7.0"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 tauri-plugin-dialog = "2"
+hidapi = { version = "2.6", features = ["macos-shared-device"] }
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
@@ -45,6 +46,8 @@ strip = true
 objc2 = "0.6.5"
 objc2-app-kit = { version = "0.3.2", features = ["NSWorkspace", "NSRunningApplication"] }
 objc2-foundation = { version = "0.3.2", features = ["NSString"] }
+core-graphics = "0.25"
+core-foundation = "0.10"
 
 [target."cfg(windows)".dependencies]
 lnk = "0.6.4"
