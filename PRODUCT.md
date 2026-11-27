@@ -15,7 +15,7 @@ Two audiences, with the finished product first:
 DIV Deck is a USB macro deck plus a free desktop app (macOS and Windows) that turns each key into whatever the current app needs. Success: a visitor knows what it is within seconds, downloads the app, joins the waitlist for the hardware, and gets set up without help.
 
 ## Positioning
-The profile follows the app in focus: open Figma and the keys become Figma tools, go back to VS Code and they become editor shortcuts, with no manual switching. Two devices share one app and one set of profiles: **DIV Deck MX** (15 mechanical hot-swap keys with per-key RGB, optional OLED pod) and **DIV Deck Pro** (a 4" touchscreen where every key shows its icon, name and colour). Designed and built by DIV Tecnologia, open hardware/firmware on GitHub.
+The profile follows the app in focus: open Figma and the keys become Figma tools, go back to VS Code and they become editor shortcuts, with no manual switching. Two devices share one app and one set of profiles: **DIV Deck MX** (15 mechanical hot-swap keys with per-key RGB, optional OLED pod) and **DIV Deck Touch** (a 4" touchscreen where every key shows its icon, name and colour). Designed and built by DIV Tecnologia, open hardware/firmware on GitHub.
 
 ## Operating Context
 Desk setups: monitor arms (35 mm pole clamp with magnets) or standing on the desk. The app lives in the menu bar, ships ready-made profiles (VS Code, Cursor, Figma, Discord, Steam, Dota 2, ChatGPT, Claude, Spotify), installs from GitHub Releases and updates itself. The box carries a QR code that lands on the getting-started section.
@@ -29,7 +29,7 @@ Desk setups: monitor arms (35 mm pole clamp with magnets) or standing on the des
 - **Not sold yet:** waitlist only. The waitlist mechanism (form service / email) is an open decision. No prices.
 
 ## Brand Commitments
-- Names: **DIV Deck MX** (the standard model, renamed from "DIV Deck") and **DIV Deck Pro**; the app is "DIV Deck"; company DIV Tecnologia.
+- Names: **DIV Deck MX** (the standard model, renamed from "DIV Deck") and **DIV Deck Touch**; the app is "DIV Deck"; company DIV Tecnologia.
 - The DIV Deck mark: a 4 × 3 grid of dots of slightly different sizes (in `docs/index.html` and `brand/`), plus the wordmark.
 - Self-signed macOS builds: first open needs right-click › Open; Accessibility and Input Monitoring permissions are part of setup.
 
@@ -47,3 +47,8 @@ Desk setups: monitor arms (35 mm pole clamp with magnets) or standing on the des
 
 ## Accessibility & Inclusion
 Content readable without the 3D/WebGL layer; respect reduced motion; keyboard reachable downloads and FAQ.
+
+## Lineup (Nov 2026)
+- DIV Deck MX: 15 mechanical keys, RGB per key, removable face (5 designs), optional OLED pod.
+- DIV Deck Touch: 4" 480×320 touchscreen (was "DIV Deck Pro"), clip-on covers (Code, Superfície; 3 colours each). Model id stays "pro" in config and firmware.
+- DIV Deck Pro (coming soon): Waveshare ESP32-S3-Touch-LCD-4.3B, 4.3" 800×480, sold without a case.
