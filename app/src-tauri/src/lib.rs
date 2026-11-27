@@ -117,7 +117,7 @@ pub(crate) fn on_deck_connected(app: &AppHandle, link: &LinkInfo) {
     {
         let mut cfg = st.config.lock().unwrap();
         if cfg.deck(&link.id).is_none() {
-            let base = if link.model == "pro" { "DIV Deck Pro" } else { "DIV Deck" };
+            let base = if link.model == "pro" { "DIV Deck Pro" } else { "DIV Deck MX" };
             let same = cfg.decks.iter().filter(|d| d.name.starts_with(base)).count();
             let name = if same == 0 { base.to_string() } else { format!("{base} {}", same + 1) };
             let profile = cfg.base_profile.clone();

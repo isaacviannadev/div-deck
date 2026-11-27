@@ -236,6 +236,14 @@ impl Config {
         if self.profiles.is_empty() {
             *self = Config::default();
         }
+        // the standard deck is now called "DIV Deck MX": rename decks still on the old default name
+        for d in self.decks.iter_mut().filter(|d| d.model != "pro") {
+            if d.name == "DIV Deck" {
+                d.name = "DIV Deck MX".into();
+            } else if let Some(n) = d.name.strip_prefix("DIV Deck ").filter(|n| n.parse::<u32>().is_ok()) {
+                d.name = format!("DIV Deck MX {n}");
+            }
+        }
         if self.presets_version < crate::presets::PRESETS_VERSION {
             // the first-run "Padrão" from v0.1 was a generic demo: swap it for the new launcher,
             // unless the user renamed or edited its keys
